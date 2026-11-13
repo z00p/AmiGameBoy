@@ -1958,7 +1958,7 @@ MainMenuText5:
     DC.B    4,0
     DC.B    $00
     DC.B    0
-    DC.W    448,22
+    DC.W    460,22
     DC.L    topaz8
     DC.L    MainMenuIText5
     DC.L    MainMenuText6
@@ -3554,7 +3554,7 @@ MainMenuIText4:
     DC.B    ' Cartridge ',0
 
 MainMenuIText5:
-    DC.B    '(freeware)',0
+    DC.B    '(GPL-2)',0
 
 MainMenuIText6:
     DC.B    ' Control ',0
