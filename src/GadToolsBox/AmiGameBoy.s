@@ -3609,7 +3609,7 @@ HelpPageIText0:
     DC.B    ' Keyboard ',0
 
 HelpPageIText1:
-    DC.B    'ESC = Exit to menu',0
+    DC.B    'Esc = Back to menu',0
 
 HelpPageIText2:
     DC.B    'Del = Select',0
@@ -3618,34 +3618,34 @@ HelpPageIText3:
     DC.B    'Help = Start',0
 
 HelpPageIText4:
-    DC.B    'Left Alt = B Button',0
+    DC.B    'Left Alt/Space = B',0
 
 HelpPageIText5:
-    DC.B    'Left Amiga = A Button',0
+    DC.B    'Left Amiga/Shift = A',0
 
 HelpPageIText6:
     DC.B    ' CD³² Joypad ',0
 
 HelpPageIText7:
-    DC.B    'Play = Exit to menu',0
+    DC.B    'Play = Start',0
 
 HelpPageIText8:
-    DC.B    'Green = Select',0
+    DC.B    'Green = B',0
 
 HelpPageIText9:
-    DC.B    'Yellow = Start',0
+    DC.B    'Yellow=Select',0
 
 HelpPageIText10:
-    DC.B    'Red = B Button',0
+    DC.B    'Red = A Button',0
 
 HelpPageIText11:
-    DC.B    'Blue = A Button',0
+    DC.B    'Blue = B Button',0
 
 HelpPageIText12:
-    DC.B    'Reward = B Button',0
+    DC.B    'Reward+Play=menu',0
 
 HelpPageIText13:
-    DC.B    'Forward = A Button',0
+    DC.B    'Forward+Play=menu',0
 
 HelpPageIText14:
     DC.B    'Space Bar = B Button',0
