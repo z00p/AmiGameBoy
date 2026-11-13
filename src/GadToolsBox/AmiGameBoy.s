@@ -3554,7 +3554,7 @@ MainMenuIText4:
     DC.B    ' Cartridge ',0
 
 MainMenuIText5:
-    DC.B    '(freeware)',0
+    DC.B    '(GPL-2)',0
 
 MainMenuIText6:
     DC.B    ' Control ',0
