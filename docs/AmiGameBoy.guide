@@ -1,0 +1,190 @@
+@database AmiGameBoy.guide
+@$VER: AmiGameBoy.guide 1.0.1 (13.11.2026)
+
+@node MAIN "AmiGameBoy"
+AmiGameBoy 1.0 is a community version for AGA Amigas.
+It emulates the original mono Game Boy.
+
+Choose a section:
+@{"What it is" link ABOUT}
+@{"Requirements" link REQUIREMENTS}
+@{"Starting a game" link START}
+@{"Controls" link CONTROLS}
+@{"Battery saves" link SAVES}
+@{"The menu" link MENU}
+@{"Not supported" link NOTSUPPORTED}
+@{"Known issues" link ISSUES}
+@{"Credits" link CREDITS}
+@{"Licence and source" link LICENCE}
+@{"History" link HISTORY}
+@endnode
+
+@node ABOUT "What it is"
+AmiGameBoy is an emulator for original mono Game Boy games.
+It runs .gb cartridges on AGA Amigas and provides sound,
+battery saves and a CD32 pad.
+
+While a game runs, the program takes over the Amiga and
+drives the AGA chips directly.
+
+@{"Main menu" link MAIN}
+@endnode
+
+@node REQUIREMENTS "Requirements"
+- An AGA Amiga, such as an A1200 or A4000, or an AGA FPGA
+  core, with AmigaOS 3.0 or later.
+- A 68020 or better. A 68030 at 50 MHz or faster is
+  recommended for full speed.
+- About twice the cartridge size plus 256 KB of memory.
+  Fast RAM is preferred. A 1 MB cartridge needs about
+  2.3 MB free.
+- asl.library, supplied with AmigaOS.
+
+@{"Main menu" link MAIN}
+@endnode
+
+@node START "Starting a game"
+There is one program: AGA. It suits an A1200 with a
+68030/50 and faster machines.
+
+Workbench: start AGA. Choose Insert in the menu, select
+a cartridge, then choose Power ON. The requester lists
+drawers and .gb / .gbc files. Change its pattern to show
+other names.
+
+Shell: enter `AGA game.gb`
+
+Project icons: give a cartridge an icon with AGA as its
+default tool and set the tool path. Double-click the icon
+to start the game.
+
+Esc returns to the menu. Choose Continue to resume.
+No games are included; use cartridge images you may
+legally have.
+
+@{"Main menu" link MAIN}
+@endnode
+
+@node CONTROLS "Controls"
+Keyboard (always active):
+  Cursor keys                Up, Down, Left, Right
+  Left Amiga or Left Shift   A
+  Left Alt or Space          B
+  Del                        Select
+  Help                       Start
+  Esc                        Return to the menu
+
+Joystick in port 2: fire is A; second fire is B. Use the
+keyboard for the other buttons.
+
+CD32 pad in port 2:
+  Red      A
+  Blue     B
+  Green    B
+  Yellow   Select
+  Play     Start
+  Hold A shoulder button with Play to return to the menu.
+
+The program writes AmiGameBoy.config beside itself on
+first start. Set one button per line, for example:
+  Green = Start
+
+Buttons: Red, Blue, Green, Yellow, L, R, Play.
+Choices: A, B, Select, Start, Up, Down, Left, Right,
+Nothing. The file is read at startup. Delete it to restore
+the defaults. The menu Help page shows the original pad
+layout; the list above shows the active defaults.
+
+@{"Main menu" link MAIN}
+@endnode
+
+@node SAVES "Battery saves"
+Games that save keep battery RAM in a .sav file beside
+the cartridge. The save has the same name, for example
+Game.gb and Game.sav. The file is loaded when the
+cartridge is inserted.
+
+If a save has changed, the program asks before writing it
+when you insert another cartridge or quit. To keep a save,
+press Esc to return to the menu, choose Quit or Insert,
+then answer Save. Do not switch off or reset from inside
+a game.
+
+@{"Main menu" link MAIN}
+@endnode
+
+@node MENU "The menu"
+LCD fade chooses the screen palette: Grey, Green, Blue
+or Red.
+
+Save Prefs writes settings to S:AmiGameBoy.prefs.
+
+@{"Main menu" link MAIN}
+@endnode
+
+@node NOTSUPPORTED "Not supported"
+- Game Boy Color-only cartridges are refused with a
+  message. Dual-mode cartridges run in mono.
+- The link cable.
+- Super Game Boy features, including borders and
+  palettes.
+- Frozen games (snapshots), cheats, the monitor, and the
+  joystick type setting from the original menu. Keyboard,
+  joystick and CD32 pad are always active.
+
+Cartridge types MBC1, MBC2, MBC3 and MBC5 up to 2 MB
+are handled.
+
+@{"Main menu" link MAIN}
+@endnode
+
+@node ISSUES "Known issues"
+- Infinity hangs before its title.
+- Last Crown Warriors has a grey background on story
+  pages. This is cosmetic.
+- Chantey has a white band in the intro. This is cosmetic.
+- Final Fantasy Legend II and Mega Man V run slower on a
+  68030/50.
+- Cartridges with a 128 KB save, such as Last Crown
+  Warriors, are untested.
+
+@{"Main menu" link MAIN}
+@endnode
+
+@node CREDITS "Credits"
+Juan Antonio Gómez Gálvez: AmiGameBoy, the menu and the
+display.
+
+Ville Helin and Ventzislav Tzvetkov: Wzonka-Lad and its
+Game Boy engine.
+
+Multivac: icons and graphics in Juan's original.
+
+z00p: the community version and sound.
+
+@{"Main menu" link MAIN}
+@endnode
+
+@node LICENCE "Licence and source"
+AmiGameBoy is free software under the GNU General Public
+License, version 2. See COPYING. It comes with no
+warranty. Juan's code is used and relicensed with his
+consent. Wzonka-Lad is also GPL-2.
+
+The CD32 pad reader, cd32pad.s, is under the MIT licence.
+See cd32pad.LICENSE in the source.
+
+The source is included with the release.
+
+@{"Main menu" link MAIN}
+@endnode
+
+@node HISTORY "History"
+Juan began AmiGameBoy in 1996-97; his last public version,
+0.96, is available on Aminet. In 2026 he sent his sources
+to the community. Version 1.0 keeps his menu and AGA
+display and uses Wzonka-Lad's engine for timing, memory
+controllers, battery saves and four-channel sound.
+
+@{"Main menu" link MAIN}
+@endnode
