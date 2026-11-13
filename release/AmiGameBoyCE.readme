@@ -1,0 +1,83 @@
+Short:        Game Boy emulator for AGA, community version
+Author:       Juan Antonio Gomez Galvez, Ville Helin, Ventzislav Tzvetkov, z00p
+Uploader:     Zoopster (JCEC_1@yahoo.co.uk)
+Type:         misc/emu
+Version:      1.0
+Architecture: m68k-amigaos >= 3.0.0
+Requires:     AGA, 68020+ (68030/50 or faster recommended)
+Distribution: Aminet
+
+AmiGameBoy is a Game Boy emulator for AGA Amigas, in 68020+ assembly. It
+plays the games of the original mono Game Boy (.gb files) with sound,
+battery saves and a CD32 pad. It is written for an A1200 with a 68030/50
+and faster machines (PiStorm, BigMig, Minimig, 68040/68060 cards). While
+a game runs it takes over the machine and drives the AGA chips directly.
+
+History
+-------
+Juan Antonio Gomez Galvez began AmiGameBoy in 1996-97; his last public
+version was 0.96. In 2026 he sent his sources for the community to carry
+on. This community version, released with his consent, keeps his menu
+and his AGA display and runs the games on the Game Boy engine of
+Wzonka-Lad by Ville Helin and Ventzislav Tzvetkov (GPL-2), which adds
+the timer, the memory controllers, battery saves and sound.
+
+New in 1.0
+----------
+- The Game Boy engine of Wzonka-Lad behind Juan's menu and display: one
+  program, AGA.
+- Four-channel sound on Paula.
+- Cartridge types MBC1, MBC2, MBC3 and MBC5 up to 2 MB, battery saves
+  (.sav beside the cartridge).
+- CD32 pad, with the buttons editable in AmiGameBoy.config.
+- A cartridge can be given in the Shell (AGA game.gb) or by a project
+  icon. The Insert requester lists cartridges and drawers only.
+- Palettes that change down the screen are followed line by line.
+- Full source included, GPL-2.
+
+Requirements
+------------
+- An AGA Amiga with AmigaOS 3.0 or later.
+- A 68020 or better; a 68030 at 50 MHz or faster for full speed.
+- Memory: about twice the cartridge's size plus 256 KB.
+
+Installation
+------------
+Unpack the archive anywhere. In the AmiGameBoy drawer start AGA, choose
+Insert, pick a .gb file, then Power ON. Esc returns to the menu. See
+ReadMe.txt or AmiGameBoy.guide for the keys, the pad and the saves.
+
+No games are included. You need cartridge images of your own, copies you
+may legally have.
+
+Not supported
+-------------
+Game Boy Color-only cartridges (refused with a message), the colour mode
+of dual-mode cartridges (they run in mono), the link cable, Super Game
+Boy features.
+
+Known issues
+------------
+- Infinity hangs before its title.
+- Last Crown Warriors: the story pages show a grey background (cosmetic).
+- Chantey: a white band in the intro (cosmetic).
+- Final Fantasy Legend II and Mega Man V run slower on a 68030/50.
+- Cartridges with a 128 KB save (e.g. Last Crown Warriors) are untested.
+
+Credits
+-------
+- Juan Antonio Gomez Galvez: AmiGameBoy, the menu and the display.
+- Ville Helin and Ventzislav Tzvetkov: Wzonka-Lad, the Game Boy engine.
+- Multivac: icons and graphics in Juan's original.
+- z00p: the community version, sound.
+
+Licence
+-------
+GNU General Public License version 2 (COPYING in the archive), no
+warranty. The source is in the Source drawer and at
+https://github.com/z00p/AmiGameBoy
+
+Reporting problems
+------------------
+Please report a game that misbehaves with its name and your machine at
+https://github.com/z00p/AmiGameBoy/issues
