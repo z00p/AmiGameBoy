@@ -52,7 +52,7 @@ a cartridge, then choose Power ON. The requester lists
 drawers and .gb / .gbc files. Change its pattern to show
 other names.
 
-Shell: enter `AGA game.gb`
+Shell: enter: AGA game.gb
 
 Project icons: give a cartridge an icon with AGA as its
 default tool and set the tool path. Double-click the icon
@@ -83,7 +83,7 @@ CD32 pad in port 2:
   Green    B
   Yellow   Select
   Play     Start
-  Hold A shoulder button with Play to return to the menu.
+  Hold a shoulder button with Play to return to the menu.
 
 The program writes AmiGameBoy.config beside itself on
 first start. Set one button per line, for example:
@@ -92,8 +92,7 @@ first start. Set one button per line, for example:
 Buttons: Red, Blue, Green, Yellow, L, R, Play.
 Choices: A, B, Select, Start, Up, Down, Left, Right,
 Nothing. The file is read at startup. Delete it to restore
-the defaults. The menu Help page shows the original pad
-layout; the list above shows the active defaults.
+the defaults.
 
 @{"Main menu" link MAIN}
 @endnode
