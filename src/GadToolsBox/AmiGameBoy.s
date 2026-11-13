@@ -2210,7 +2210,7 @@ HelpPageText12:
     DC.B    6,0
     DC.B    $00
     DC.B    0
-    DC.W    300,69
+    DC.W    260,69
     DC.L    topaz8
     DC.L    HelpPageIText12
     DC.L    HelpPageText13
@@ -2219,7 +2219,7 @@ HelpPageText13:
     DC.B    6,0
     DC.B    $00
     DC.B    0
-    DC.W    292,79
+    DC.W    252,79
     DC.L    topaz8
     DC.L    HelpPageIText13
     DC.L    HelpPageText14
@@ -3618,10 +3618,10 @@ HelpPageIText3:
     DC.B    'Help = Start',0
 
 HelpPageIText4:
-    DC.B    'Left Alt/Space = B',0
+    DC.B    'Left Alt = B Button',0
 
 HelpPageIText5:
-    DC.B    'Left Amiga/Shift = A',0
+    DC.B    'Left Amiga = A Button',0
 
 HelpPageIText6:
     DC.B    ' CD³² Joypad ',0
@@ -3633,7 +3633,7 @@ HelpPageIText8:
     DC.B    'Green = B',0
 
 HelpPageIText9:
-    DC.B    'Yellow=Select',0
+    DC.B    'Yellow = Select',0
 
 HelpPageIText10:
     DC.B    'Red = A Button',0
@@ -3642,10 +3642,10 @@ HelpPageIText11:
     DC.B    'Blue = B Button',0
 
 HelpPageIText12:
-    DC.B    'Reward+Play=menu',0
+    DC.B    'Reward+Play = Menu',0
 
 HelpPageIText13:
-    DC.B    'Forward+Play=menu',0
+    DC.B    'Forward+Play = Menu',0
 
 HelpPageIText14:
     DC.B    'Space Bar = B Button',0
