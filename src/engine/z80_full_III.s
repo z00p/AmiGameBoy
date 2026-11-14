@@ -326,7 +326,12 @@ daa_exit_007:	fetch_next_i
 ;		trash the oam ram according to the hardware bug
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
 
-trash_oam_ram:	move.l	a2,a6
+trash_oam_ram:
+		IFD	HY_GBC				;AmiGameBoy GBC: the CGB has no OAM bug.
+		tst.b	gbc_mode
+		bne.s	trash_oam_ram_x
+		ENDC
+		move.l	a2,a6
 		add.l	#$FE08,a6
 		moveq.l	#38/2-1,d7
 
@@ -334,6 +339,7 @@ trash_oam_ram_loop:
 		clr.l	(a6)+
 		clr.l	(a6)+
 		dbra	d7,trash_oam_ram_loop
+trash_oam_ram_x:
 		rts
 
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
@@ -877,8 +883,13 @@ z80_optc_CB0F:	subq.l	#2,a5					;less cycles.
 ;		10 - STOP (+ 00.B?)
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
 
-z80_optcode_10:	move.b	#1,z80_halt				;z80 stopped!
+z80_optcode_10:
+		IFD	HY_GBC
+		jmp	gbc_stop				;AmiGameBoy GBC: speed switch.
+		ELSE
+		move.b	#1,z80_halt				;z80 stopped!
 		rts
+		ENDC
 		cnop	0,128
 
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»

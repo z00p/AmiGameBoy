@@ -155,6 +155,13 @@ Start:	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	cartridge,a0
 	bsr.w	compute_jmp_lst		; write table (Wzonka)
 	bsr.w	HyPatchWrites		; our handlers for the renderer
+	IFD	HY_GBC			; Game Boy Color: CGB registers (gbc.s), the line renderer
+	move.l	gb_mem_jumps,a0
+	jsr	gbc_install
+	IFD	GBC_RENDER
+	jsr	gbc_line_init
+	ENDC
+	ENDC
 
 	IFND	NO_SOUND
 	clr.b	snd_quality		; per-line hook on: Paula sound (sound.s)
@@ -194,7 +201,18 @@ Start:	movem.l	d2-d7/a2-a6,-(sp)
 
 	move.l	4.w,a6
 	jsr	CacheClearU(a6)
+	IFD	GBC_RTG			; test: the 16-bit Picasso96 screen, OS alive (gbc_rtg.s)
+	jsr	gbc_rtg_open
+	ENDC
 	jsr	CongelaAMIGA		; take the machine (VBL vector -> HyVBL)
+	IFD	GBC_RTG
+	tst.b	gbc_rtg_on		; RTG: nothing of the display from chip RAM
+	beq.s	.nortg
+	move.w	#$01a0,$dff096		; BPLEN, COPEN, SPREN off
+	move.w	#$0000,$dff180
+	move.w	#$0200,$dff100
+.nortg:
+	ENDC
 	IFND	NO_SOUND
 	bsr.w	HySndInit		; Paula voices on, silent
 	ENDC
@@ -237,6 +255,9 @@ HyVBL:	btst	#5,$dff01f
 ; NO_FRAMESKIP: draw every frame after a VBL (the game runs at the screen rate).
 hybrid_frame:
 	movem.l	d0-d7/a0-a6,-(sp)
+	IFD	GBC_RENDER
+	jsr	gbc_frame_end		; LCD off all frame: white
+	ENDC
 	IFD	HY_FRAMELOG
 	bsr.w	HyFLogAdd
 	ENDC
@@ -332,7 +353,11 @@ hybrid_frame:
 	bsr.w	HyBeam
 	move.l	d0,-(sp)
 	ENDC
+	IFD	GBC_RTG
+	jsr	gbc_rtg_show		; test: the GBC frame to the RTG screen
+	ELSE
 	jsr	HyBuild			; Juan's frame tick: copper, tiles, OBJs, palette
+	ENDC
 	IFD	HY_PROF
 	bsr.w	HyBeam
 	sub.l	(sp)+,d0
@@ -500,8 +525,14 @@ HyExit:
 	bsr.w	HySndStop
 	ENDC
 	jsr	DescongelaAMIGA
+	IFD	GBC_RTG
+	jsr	gbc_rtg_close
+	ENDC
 	IFNE	AutoExit
 	bsr.w	HyResult
+	IFD	GBC_RENDER
+	bsr.w	GbcFbSave
+	ENDC
 	ENDC
 	IFD	HY_FRAMELOG
 	bsr.w	HyFLogSave
@@ -585,6 +616,46 @@ HyFLogSave:
 	move.l	d4,d1
 	jsr	dosClose(a6)
 .x:	rts
+	ENDC
+
+	IFD	GBC_RENDER
+	IFNE	AutoExit
+; test: GB:AmiGB.prof = "RTG2", the frame number, gbc_pixfmt (long), the last frame (gbc_fb,
+; 160 x 144 words in that format),
+; palette RAM (BG 64 + OBJ 64 bytes) for tools/gbc_pic.py
+GbcFbSave:
+	move.l	HyDosBase,a6
+	move.l	#GbcFbName,d1
+	move.l	#MODE_NEWFILE,d2
+	jsr	dosOpen(a6)
+	move.l	d0,d4
+	beq.s	.x
+	move.l	HyFrames,GbcFbHead+4
+	move.b	gbc_pixfmt,GbcFbHead+11
+	move.l	d4,d1
+	move.l	#GbcFbHead,d2
+	moveq	#12,d3
+	jsr	dosWrite(a6)
+	move.l	d4,d1
+	move.l	#gbc_fb,d2
+	move.l	#160*144*2,d3
+	jsr	dosWrite(a6)
+	move.l	d4,d1
+	move.l	#gbc_bgpal,d2
+	moveq	#64,d3
+	jsr	dosWrite(a6)
+	move.l	d4,d1
+	move.l	#gbc_obpal,d2
+	moveq	#64,d3
+	jsr	dosWrite(a6)
+	move.l	d4,d1
+	jsr	dosClose(a6)
+.x:	rts
+GbcFbHead:	dc.b	"RTG2"
+	dc.l	0,0
+GbcFbName:	dc.b	"GB:AmiGB.prof",0
+	even
+	ENDC
 	ENDC
 
 	IFNE	AutoExit
@@ -760,6 +831,15 @@ HyWzEnd:				; end of the engine state (menu.s keeps a copy)
 	include	"gb_extra.s"
 	include	"z80_misc.s"
 	include	"z80_full_III.s"
+	IFD	HY_GBC
+	include	"gbc.s"
+	ENDC
+	IFD	GBC_RENDER
+	include	"gbc_line.s"
+	ENDC
+	IFD	GBC_RTG
+	include	"gbc_rtg.s"
+	ENDC
 
 	SECTION	hybrid,CODE
 ; Juan's data block: offsets from Regs (A3), some negative (UltCopLin, IntGB1Ant)

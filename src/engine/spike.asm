@@ -128,6 +128,14 @@ Start:	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	gb_mem_jumps,a0		; sound registers stored (gb_extra.s)
 	bsr.w	snd_regs_install
 	ENDC
+	IFD	HY_GBC
+	move.l	gb_mem_jumps,a0		; CGB registers (gbc.s); CGB mode starts at LY 146,
+	jsr	gbc_install		; so the first LY 144 is a frame end
+	tst.b	gbc_mode
+	beq.s	.nogbc
+	st	SpikeStarted
+.nogbc:
+	ENDC
 	IFD	SPIKE_IOLOG
 	move.l	gb_mem_jumps,a0		; log LCDC and BGP writes
 	adda.l	#$ff40*4,a0
@@ -205,6 +213,9 @@ spike_frame:
 	IFD	SPIKE_OPCOST
 	move.l	OcIns,-16(a5)		; instructions this frame in place of the entry time
 	clr.l	OcIns
+	ENDC
+	IFD	HY_GBC
+	bsr.w	SpikeGbc
 	ENDC
 ; memory dump?
 	move.l	FrameNo,d0
@@ -314,7 +325,11 @@ WriteProf:
 	dbra	d0,.c
 	move.l	#ProfName,d1
 	bsr.w	OpenNew
+	IFD	HY_GBC			; (the GBC1 block makes it too far for SPIKE_TRACE builds)
+	beq.w	.x
+	ELSE
 	beq.s	.x
+	ENDC
 	lea	ProfHead,a0
 	move.l	#ProfHeadEnd-ProfHead,d0
 	bsr.w	WriteBlk
@@ -348,8 +363,114 @@ WriteProf:
 	lsl.l	#3,d0
 	bsr.w	WriteBlk
 	ENDC
+	IFD	HY_GBC
+	lea	GbcMagic,a0		; then: "GBC1", frames x 16 bytes, NDUMPS x GBCDUMP
+	moveq	#4,d0
+	bsr.w	WriteBlk
+	lea	GbcRecs,a0
+	move.l	FrameNo,d0
+	lsl.l	#4,d0
+	bsr.w	WriteBlk
+	lea	GbcDumps,a0
+	move.l	#NDUMPS*GBCDUMP,d0
+	bsr.w	WriteBlk
+	ENDC
 	bsr.w	CloseFile
 .x:	rts
+
+	IFD	HY_GBC
+; ---- CGB state: per frame the sums (as the frame checksum: rol 1 + add over longs) of
+; VRAM bank 0, VRAM bank 1, WRAM banks 0-7 in order, BG + OBJ palette RAM; at the dump
+; frames VRAM 0-1, WRAM 0-7, palettes and 16 bytes of registers (GBCDUMP bytes).
+SpikeGbc:
+	movem.l	d0-d7/a0-a6,-(sp)
+	move.l	FrameNo,d7
+	lsl.l	#4,d7
+	lea	GbcRecs,a5
+	add.l	d7,a5
+	lea	gbc_vram,a1
+	moveq	#0,d0
+	move.w	#$2000/4-1,d1
+	bsr.w	.sum
+	move.l	d0,(a5)+
+	moveq	#0,d0
+	move.w	#$2000/4-1,d1
+	bsr.w	.sum
+	move.l	d0,(a5)+
+	moveq	#0,d0
+	moveq	#0,d2
+.wb:	bsr.w	.bank
+	move.w	#$1000/4-1,d1
+	bsr.w	.sum
+	addq.l	#1,d2
+	cmp.l	#8,d2
+	bne.s	.wb
+	move.l	d0,(a5)+
+	lea	gbc_bgpal,a1
+	moveq	#0,d0
+	moveq	#128/4-1,d1
+	bsr.w	.sum
+	move.l	d0,(a5)+
+	move.l	FrameNo,d0
+	addq.l	#1,d0
+	lea	DumpList,a1
+	lea	GbcDumps,a2
+	moveq	#NDUMPS-1,d1
+.dl:	cmp.l	(a1)+,d0
+	beq.s	.dump
+	add.l	#GBCDUMP,a2
+	dbra	d1,.dl
+	bra.w	.x
+.dump:	lea	gbc_vram,a1
+	move.w	#$4000/4-1,d1
+.d1:	move.l	(a1)+,(a2)+
+	dbra	d1,.d1
+	moveq	#0,d2
+.wd:	bsr.w	.bank
+	move.w	#$1000/4-1,d1
+.d2:	move.l	(a1)+,(a2)+
+	dbra	d1,.d2
+	addq.l	#1,d2
+	cmp.l	#8,d2
+	bne.s	.wd
+	lea	gbc_bgpal,a1
+	moveq	#128/4-1,d1
+.d3:	move.l	(a1)+,(a2)+
+	dbra	d1,.d3
+	move.b	gbc_vbk,(a2)+
+	move.b	gbc_svbk,(a2)+
+	move.b	gbc_double,(a2)+
+	move.b	gbc_prep,(a2)+
+	move.b	gbc_hact,(a2)+
+	move.b	gbc_hlen,(a2)+
+	move.b	gbc_bcps,(a2)+
+	move.b	gbc_ocps,(a2)+
+	move.w	gbc_hsrc,(a2)+
+	move.w	gbc_hdst,(a2)+
+	move.b	gbc_mode,(a2)+
+	clr.b	(a2)+
+	move.w	gbc_stall,(a2)+
+.x:	movem.l	(sp)+,d0-d7/a0-a6
+	rts
+.sum:	rol.l	#1,d0
+	add.l	(a1)+,d0
+	dbra	d1,.sum
+	rts
+; WRAM bank d2 (0-7) -> a1: bank 0 at $C000, the selected one at $D000, others stored
+.bank:	move.l	gb_memory,a1
+	add.l	#$c000,a1
+	tst.l	d2
+	beq.s	.bx
+	add.l	#$1000,a1
+	cmp.b	gbc_svbk,d2
+	beq.s	.bx
+	move.l	d2,d3
+	lsl.l	#8,d3
+	lsl.l	#4,d3
+	lea	gbc_wram,a1
+	add.l	d3,a1
+.bx:	rts
+	ENDC
 
 WriteResult:
 	lea	ResultNum,a0
@@ -568,6 +689,9 @@ load_error_unknown_size:
 	include	"gb_extra.s"
 	include	"z80_misc.s"
 	include	"z80_full_III.s"
+	IFD	HY_GBC
+	include	"gbc.s"
+	ENDC
 
 	SECTION	spikedata,DATA
 exec_base:	dc.l	0
@@ -607,6 +731,9 @@ DUMP1	=300
 DUMP2	=900
 	ENDC
 DumpList:	dc.l	DUMP1,DUMP2,SPIKE_FRAMES
+	IFD	HY_GBC
+GbcMagic:	dc.b	"GBC1"
+	ENDC
 DosName:	dc.b	"dos.library",0
 TimerName:	dc.b	"timer.device",0
 ProfName:	dc.b	"GB:AmiGB.prof",0
@@ -635,6 +762,11 @@ ProfHead:	ds.l	5+NDUMPS
 ProfHeadEnd:
 Records:	ds.b	REC_SIZE*(SPIKE_FRAMES+1)
 Dumps:		ds.b	NDUMPS*$8000
+	IFD	HY_GBC
+GBCDUMP		=$4000+$8000+$80+$10
+GbcRecs:	ds.b	16*(SPIKE_FRAMES+1)
+GbcDumps:	ds.b	NDUMPS*GBCDUMP
+	ENDC
 	IFD	SPIKE_TRACE
 TraceBuf:	ds.b	12*SPIKE_TRACE
 	ENDC

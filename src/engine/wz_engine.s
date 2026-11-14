@@ -236,6 +236,9 @@ clear_misc_registers:
 		jsr	CacheClearU(a6)			;any help?
 
 		bsr.w	z80_start			;do the inits.
+		IFD	HY_GBC
+		jsr	gbc_start			;AmiGameBoy GBC: CGB hand-over state.
+		ENDC
 		bsr.w	push_z80			;push all the registers.
 
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
@@ -261,6 +264,13 @@ cartridge_loop:
 		move.l	#144,gb_scanlines
 		move.b	#144,$44(a6)
 		move.l	#h_values+144*5,h_values_indexed
+		IFD	HY_GBC
+		tst.b	gbc_mode			;AmiGameBoy GBC: the CGB boot ROM hands
+		beq.s	start144_skip			;over at LY 146.
+		move.l	#146,gb_scanlines
+		move.b	#146,$44(a6)
+		move.l	#h_values+146*5,h_values_indexed
+		ENDC
 start144_skip:
 		ENDC
 		IFND	NO_LCDONOFF			;AmiGameBoy: LCD switched on during
@@ -487,7 +497,12 @@ halt_wake_0:
 		ENDC
 
 		IFND	NO_LINE114
+		IFD	HY_GBC
+		move.l	gbc_ext,d7			;AmiGameBoy GBC: 2 in double speed (46,46,46,46,44).
+		add.l	d7,sweep_extra
+		ELSE
 		addq.l	#1,sweep_extra			;AmiGameBoy: sweeps 23,23,23,23,22 = 114.
+		ENDC
 		ENDC
 		bsr.w	z80_cpu_next_sweep
 
@@ -594,6 +609,17 @@ no_transfer:
 		sub.b	d7,$04(a6)			;when the fraction carries.
 		ENDC
 		add.b	#1,$04(a6)			;DIVIDER register.
+		IFD	HY_GBC
+		IFND	NO_DIVRATE
+		tst.b	gbc_double			;AmiGameBoy GBC: DIV twice as fast in
+		beq.s	gbc_div_single			;double speed.
+		add.b	#200,div_frac
+		scs	d7
+		sub.b	d7,$04(a6)
+		add.b	#1,$04(a6)
+gbc_div_single:
+		ENDC
+		ENDC
 		and.b	#%11111100,$41(a6)
 
 		move.l	h_values_indexed,a5
@@ -681,7 +707,12 @@ halt_wake_1:
 		ENDC
 
 		IFND	NO_LINE114
+		IFD	HY_GBC
+		move.l	gbc_ext,d7			;AmiGameBoy GBC: 2 in double speed (46,46,46,46,44).
+		add.l	d7,sweep_extra
+		ELSE
 		addq.l	#1,sweep_extra			;AmiGameBoy: sweeps 23,23,23,23,22 = 114.
+		ENDC
 		ENDC
 		bsr.w	z80_cpu_next_sweep
 
@@ -799,7 +830,12 @@ halt_wake_2:
 		ENDC
 
 		IFND	NO_LINE114
+		IFD	HY_GBC
+		move.l	gbc_ext,d7			;AmiGameBoy GBC: 2 in double speed (46,46,46,46,44).
+		add.l	d7,sweep_extra
+		ELSE
 		addq.l	#1,sweep_extra			;AmiGameBoy: sweeps 23,23,23,23,22 = 114.
+		ENDC
 		ENDC
 		bsr.w	z80_cpu_next_sweep
 
@@ -875,6 +911,9 @@ no_timer_update_3:
 lcdoff_stat_3:
 		ENDC
 		or.b	d6,$41(a6)
+		IFD	HY_GBC
+		jsr	gbc_hblank			;AmiGameBoy GBC: HBlank DMA, speed switch.
+		ENDC
 
 		IFLE	Z80_MODE
 		cmp.l	#144,gb_scanlines
@@ -951,7 +990,12 @@ halt_wake_3:
 		ENDC
 
 		IFND	NO_LINE114
+		IFD	HY_GBC
+		move.l	gbc_ext,d7			;AmiGameBoy GBC: 2 in double speed (46,46,46,46,44).
+		add.l	d7,sweep_extra
+		ELSE
 		addq.l	#1,sweep_extra			;AmiGameBoy: sweeps 23,23,23,23,22 = 114.
+		ENDC
 		ENDC
 		bsr.w	z80_cpu_next_sweep
 
@@ -1923,6 +1967,12 @@ input_gbs_load:	bsr.w	runtime_gbs_load
 irq_timer:	and.l	#%11,d7				;save the frequency value.
 		lea	freq_table,a5			;a5 = the value table.
 		move.l	(a5,d7.w*4),d6			;d6 = the freq*4096/60/154/5.
+		IFD	HY_GBC
+		tst.b	gbc_double			;AmiGameBoy GBC: the timer twice as
+		beq.s	gbc_tim_single			;fast in double speed.
+		add.l	d6,d6
+gbc_tim_single:
+		ENDC
 		add.l	freq_storage,d6			;add the old value.
 		move.l	d6,d7				;store the value.
 		lsr.l	#8,d6
