@@ -6,6 +6,12 @@
 ; at least 320x288, else of at least 160x144. The picture at the largest integer scale that
 ; fits (at most 4), centred. gbc_line draws in the screen's own format (gbc_pixfmt); only
 ; the lines that changed since the last copy go to the screen.
+; Double buffer (unless GBC_NODBUF): the screen is opened twice the mode's height; the frame
+; goes to the hidden half (the lines that differ from what that half holds), then the halves
+; swap: RasInfo RyOffset and graphics ScrollVPort (P96 pans the board; most boards take a new
+; start address at their vertical blank). If the tall screen does not open: one buffer.
+; GBC_PACELOG = n (test): per picture shown, the Amiga VBL count, the Game Boy frame and the
+; beam at the start and end of the copy, saved after the AutoExit picture (tools/gbc_pace.py).
 
 GBC_RMAXS	=4
 
@@ -98,12 +104,31 @@ gbc_rtg_open:
 	bsr.w	.attr
 	move.l	d0,gbc_rstd+4
 	move.l	d5,gbc_rstm+4
+	IFND	GBC_NODBUF
+	move.l	gbc_rsth+4,d0		; double buffer: twice the height
+	add.l	d0,d0
+	move.l	d0,gbc_rsth+4
+	sub.l	a0,a0
+	lea	gbc_rtags,a1
+	move.l	gbc_rint,a6
+	jsr	-612(a6)		; OpenScreenTagList
+	move.l	d0,gbc_rscr
+	bne.s	.db
+	move.l	gbc_rsth+4,d0		; no: one buffer
+	lsr.l	#1,d0
+	move.l	d0,gbc_rsth+4
+	ENDC
 	sub.l	a0,a0
 	lea	gbc_rtags,a1
 	move.l	gbc_rint,a6
 	jsr	-612(a6)		; OpenScreenTagList
 	move.l	d0,gbc_rscr
 	beq.w	.x
+	IFND	GBC_NODBUF
+	bra.s	.sb
+.db:	st	gbc_rdbuf
+.sb:
+	ENDC
 	move.l	gbc_rgfx,a6
 	jsr	-270(a6)		; WaitTOF
 	jsr	-270(a6)
@@ -161,16 +186,26 @@ gbc_rtg_open:
 	add.l	d1,d0
 	add.l	gbc_rmem,d0
 	move.l	d0,gbc_rorg
-	move.l	gbc_rmem,a0		; clear the screen
-	move.l	gbc_rbpr,d0
-	mulu.w	gbc_rh,d0
+	move.l	d0,gbc_rorgs		; buffer 0 (shown)
+	move.l	gbc_rbpr,d1
+	mulu.w	gbc_rh,d1
+	add.l	d1,d0
+	move.l	d0,gbc_rorgs+4		; buffer 1 (hidden): the lower half
+	move.l	gbc_rmem,a0		; clear the screen (both halves)
+	move.l	gbc_rsth+4,d0
+	mulu.w	gbc_rbpr+2,d0
 	lsr.l	#2,d0
 	bra.s	.cle
 .cl:	clr.l	(a0)+
 .cle:	subq.l	#1,d0
 	bpl.s	.cl
-	st	gbc_rfull		; the first copy: every line
-	st	gbc_rtg_on
+	st	gbc_rfull		; the first copy to each buffer: every line
+	st	gbc_rfull+1
+	move.b	#1,gbc_rhid		; draw into buffer 1 first (single buffer: buffer 0)
+	tst.b	gbc_rdbuf
+	bne.s	.hd
+	clr.b	gbc_rhid
+.hd:	st	gbc_rtg_on
 .x:	movem.l	(sp)+,d0-d7/a0-a6
 	rts
 .attr:	move.l	d4,d0			; P96 GetModeIDAttr(d4, d1)
@@ -207,14 +242,25 @@ gbc_rfmtflags:
 gbc_rtg_show:
 	tst.b	gbc_rtg_on
 	beq.w	.x
-	movem.l	d0-d7/a0-a5,-(sp)
+	movem.l	d0-d7/a0-a6,-(sp)
+	IFD	GBC_PACELOG
+	bsr.w	gbc_rpace0
+	ENDC
+	moveq	#0,d0
+	move.b	gbc_rhid,d0		; the buffer drawn now
+	lea	gbc_rfull,a6
+	add.l	d0,a6			; its "every line" flag
+	lea	gbc_fbold,a4		; what it holds
+	tst.b	d0
+	beq.s	.b0
+	lea	gbc_fbold1,a4
+.b0:	lea	gbc_rorgs,a1
+	move.l	(a1,d0.w*4),a1
 	lea	gbc_fb,a0
-	lea	gbc_fbold,a4
-	move.l	gbc_rorg,a1
 	move.l	gbc_rbpr,d6
 	move.w	gbc_rscale,d5
 	moveq	#0,d7			; line
-.ln:	tst.b	gbc_rfull
+.ln:	tst.b	(a6)
 	bne.s	.chg
 	move.l	a0,a2			; changed since the last copy?
 	move.l	a4,a3
@@ -279,9 +325,57 @@ gbc_rtg_show:
 	addq.w	#1,d7
 	cmp.w	#144,d7
 	bne.w	.ln
-	sf	gbc_rfull
-	movem.l	(sp)+,d0-d7/a0-a5
+	sf	(a6)
+	tst.b	gbc_rdbuf
+	beq.s	.nf
+	move.l	gbc_rscr,a0		; show it: RyOffset = its half, ScrollVPort
+	lea	$2c(a0),a0		; sc_ViewPort
+	move.l	36(a0),a1		; vp_RasInfo
+	moveq	#0,d0
+	tst.b	gbc_rhid
+	beq.s	.f0
+	move.w	gbc_rh,d0
+.f0:	move.w	d0,10(a1)		; ri_RyOffset
+	move.l	gbc_rgfx,a6
+	jsr	-588(a6)		; ScrollVPort
+	eor.b	#1,gbc_rhid		; the other one next
+.nf:
+	IFD	GBC_PACELOG
+	bsr.w	gbc_rpace1
+	ENDC
+	movem.l	(sp)+,d0-d7/a0-a6
 .x:	rts
+
+	IFD	GBC_PACELOG
+gbc_rpace0:				; the entry: VBL count, Game Boy frame, beam now
+	move.l	gbc_rpn,d0
+	cmp.l	#GBC_PACELOG,d0
+	bcc.s	.x
+	mulu.w	#12,d0
+	lea	gbc_rplog,a0
+	add.l	d0,a0
+	move.l	HyVblN,(a0)+
+	move.w	HyFrames+2,(a0)+
+	move.l	$dff004,d0
+	lsr.l	#8,d0
+	and.w	#$1ff,d0
+	move.w	d0,(a0)+
+.x:	rts
+gbc_rpace1:				; the beam at the end, the VBL count again
+	move.l	gbc_rpn,d0
+	cmp.l	#GBC_PACELOG,d0
+	bcc.s	.x
+	mulu.w	#12,d0
+	lea	gbc_rplog+8,a0
+	add.l	d0,a0
+	move.l	$dff004,d0
+	lsr.l	#8,d0
+	and.w	#$1ff,d0
+	move.w	d0,(a0)+
+	move.w	HyVblN+2,(a0)+
+	addq.l	#1,gbc_rpn
+.x:	rts
+	ENDC
 
 ; ---- close: OS alive. Keeps every register.
 gbc_rtg_close:
@@ -334,8 +428,11 @@ gbc_rri:	dc.l	0,0,0		; RenderInfo: Memory, BytesPerRow (word) + pad, RGBFormat
 gbc_rw:		dc.w	0
 gbc_rh:		dc.w	0
 gbc_rscale:	dc.w	1
+gbc_rorgs:	dc.l	0,0		; buffer 0, buffer 1: the picture's top left
 gbc_rtg_on:	dc.b	0
-gbc_rfull:	dc.b	0
+gbc_rfull:	dc.b	0,0		; per buffer: copy every line next time
+gbc_rdbuf:	dc.b	0		; double-height screen open
+gbc_rhid:	dc.b	0		; the buffer to draw into
 ; P96 RGBFormat, gbc_pixfmt flags (bit 0 PC byte order, bit 1 5-5-5, bit 2 BGR)
 gbc_rfmts:	dc.b	10,0		; R5G6B5
 		dc.b	4,1		; R5G6B5PC (uaegfx)
@@ -347,5 +444,10 @@ gbc_rfmts:	dc.b	10,0		; R5G6B5
 	even
 
 	SECTION	gbcrbss,BSS
-gbc_fbold:	ds.w	160*144		; the frame as last copied
+gbc_fbold:	ds.w	160*144		; the frame as last copied to buffer 0
+gbc_fbold1:	ds.w	160*144		; ... to buffer 1
+	IFD	GBC_PACELOG
+gbc_rpn:	ds.l	1
+gbc_rplog:	ds.b	12*GBC_PACELOG
+	ENDC
 gbc_rrow:	ds.w	160*GBC_RMAXS	; one scaled row (3x, 4x)

@@ -429,7 +429,17 @@ vbr_blank:	btst.b	#7,$40(a6)			;lcd operation?
 		ENDC
 
 		bset.b	#1,irq_status_flags
+		IFD	HY_GBC
+		IFND	NO_VBLLATE			;AmiGameBoy GBC: a running CPU sees LY 144
+		tst.b	z80_halt			;before the VBlank IF (set at sweep 1,
+		bne.s	gbc_vbn				;after a short sweep 0).
+		st	gbc_vbl_late
+		bra.s	gbc_vbx
+gbc_vbn:
+		ENDC
+		ENDC
 		bset.b	#0,$0f(a6)			;vbr occurred.
+gbc_vbx:
 
 		IFGT	GAMEBOY_DEBUG
 		bsr.w	debug_vbr
@@ -447,6 +457,18 @@ no_vbr_blank:	move.b	$0f(a6),d7
 		bne.s	no_interrupts_0
 
 dehalting_z80_0:
+		IFD	HY_GBC
+		IFND	NO_VBLLATE
+		tst.b	gbc_vbl_late			;AmiGameBoy GBC: another interrupt dispatches
+		beq.s	gbc_vld0			;now: VBlank joins it at once, as before.
+		sf	gbc_vbl_late
+		bset.b	#0,$0f(a6)
+		btst.b	#0,$ff(a6)
+		beq.s	gbc_vld0
+		bset	#0,d7
+gbc_vld0:
+		ENDC
+		ENDC
 		IFND	NO_IRQ5
 		subq.l	#5,sweep_extra			;AmiGameBoy: dispatch takes 5 M-cycles.
 		ENDC
@@ -504,6 +526,15 @@ halt_wake_0:
 		addq.l	#1,sweep_extra			;AmiGameBoy: sweeps 23,23,23,23,22 = 114.
 		ENDC
 		ENDC
+		IFD	HY_GBC
+		IFND	NO_VBLLATE
+		tst.b	gbc_vbl_late			;AmiGameBoy GBC: line 144 with VBlank to come:
+		beq.s	gbc_vls0			;this sweep is 1 M-cycle (2 in double speed),
+		move.l	z80_cycles,d7			;its other cycles go to sweep 1.
+		sub.l	d7,sweep_extra
+gbc_vls0:
+		ENDC
+		ENDC
 		bsr.w	z80_cpu_next_sweep
 
 ei_loop_0:	tst.b	z80_ei_return
@@ -524,6 +555,15 @@ no_ei_return_0:
 		ble.s	ln114_0				;the next sweep (a HALT leaves
 		moveq	#0,d7				;cycles over: nothing to carry).
 ln114_0:	move.l	d7,sweep_extra
+		IFD	HY_GBC
+		IFND	NO_VBLLATE
+		tst.b	gbc_vbl_late
+		beq.s	gbc_vle0
+		move.l	z80_cycles,d7
+		add.l	d7,sweep_extra
+gbc_vle0:
+		ENDC
+		ENDC
 		ENDC
 		IFGT	GAMEBOY_DEBUG
 		tst.b	debug_exit
@@ -537,6 +577,15 @@ ln114_0:	move.l	d7,sweep_extra
 cpu_halt_is_on_0:
 		move.l	a2,a6
 		add.l	#$ff00,a6
+		IFD	HY_GBC
+		IFND	NO_VBLLATE
+		tst.b	gbc_vbl_late			;AmiGameBoy GBC: the VBlank IF, 1 M-cycle into
+		beq.s	gbc_vli1			;line 144.
+		sf	gbc_vbl_late
+		bset.b	#0,$0f(a6)
+gbc_vli1:
+		ENDC
+		ENDC
 
 		IFLE	Z80_MODE
 		move.b	$07(a6),d7			;d7 = timer control byte.

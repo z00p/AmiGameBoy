@@ -3,10 +3,12 @@
 ;
 ; CGB mode is taken when the cartridge header says so ($143 bit 7: $80 both models, $C0
 ; Colour only). Then:
-; - VRAM bank 1 (VBK, $FF4F). Wzonka's CPU reads RAM straight from the flat 64 KB block
-;   (no read table), so the flat $8000-$9FFF always holds the selected bank, and gbc_vram
-;   keeps both banks as they are (every VRAM write goes to both places). A bank switch
-;   copies the newly selected bank into the flat block (8 KB). The renderer reads gbc_vram.
+; - VRAM bank 1 (VBK, $FF4F). gbc_vram keeps both banks; the flat $8000-$9FFF is always
+;   bank 0 (a bank 0 write goes to both places and on to the old handler, a bank 1 write
+;   only to gbc_vram). CPU byte reads of $8000-$9FFF go through gbc_vrd (z80_misc.s GBC_RD,
+;   GBC_BTST): the selected bank, or $FF while the LCD draws a line (STAT mode 3). Not
+;   hooked: POP/RET and code run from VRAM, OAM DMA from VRAM (bank 0), the idle skip's
+;   polled byte. The renderer reads gbc_vram.
 ; - WRAM banks 1-7 (SVBK, $FF70): the flat $D000-$DFFF holds the selected bank, the others
 ;   live in gbc_wram (bank n at n*$1000); a switch stores the old bank, loads the new one and
 ;   refreshes the echo at $F000-$FDFF.
@@ -143,6 +145,9 @@ gbc_reset:
 	move.b	#$80,gbc_bcps		; reads $C0: index 0, auto-increment
 	clr.b	gbc_ocps		; reads $40
 	bsr.w	gbc_speed
+	IFD	GBC_RENDER
+	jsr	gbc_tdall		; VRAM set here: the row cache from scratch
+	ENDC
 	movem.l	(sp)+,d0-d7/a0-a6
 	rts
 
@@ -168,52 +173,122 @@ gbc_speed:
 
 ; ---- write handlers: d6.b = value, d7.l = address, a2 = memory; only d6/a6 free.
 
-; tile data $8000-$97FF / maps $9800-$9FFF: the bank's own copy, then the old handler
+; tile data $8000-$97FF / maps $9800-$9FFF: bank 0 = its copy, then the old handler (the
+; flat block); bank 1 = its copy only
 	cnop	0,4
 gbc_wvram_t:
-	lea	gbc_vram-$8000,a6
 	tst.b	gbc_vbk
-	beq.s	.b0
-	lea	$2000(a6),a6
-.b0:	move.b	d6,(a6,d7.l)
+	bne.s	.t1
+	IFD	GBC_RENDER
+	lea	gbc_tdirty-$8000,a6	; the renderer's row cache: decode this row again
+	st	(a6,d7.l)
+	ENDC
+	lea	gbc_vram-$8000,a6
+	move.b	d6,(a6,d7.l)
 	move.l	gbc_orig8000,a6
 	jmp	(a6)
+.t1:
+	IFD	GBC_RENDER
+	lea	gbc_tdirty+$1800-$8000,a6
+	st	(a6,d7.l)
+	ENDC
+	bra.s	gbc_wvram_1
 	cnop	0,4
 gbc_wvram_m:
-	lea	gbc_vram-$8000,a6
 	tst.b	gbc_vbk
-	beq.s	.b0
-	lea	$2000(a6),a6
-.b0:	move.b	d6,(a6,d7.l)
+	bne.s	gbc_wvram_1
+	lea	gbc_vram-$8000,a6
+	move.b	d6,(a6,d7.l)
 	move.l	gbc_orig9800,a6
 	jmp	(a6)
+gbc_wvram_1:
+	lea	gbc_vram+$2000-$8000,a6
+	move.b	d6,(a6,d7.l)
+	rts
 
-; VBK: the flat block gets the selected bank
+; VBK: only the number (reads go through gbc_vrd)
 	cnop	0,4
 gbc_w4f:
 	and.b	#1,d6
+	IFD	GBC_COUNT
 	cmp.b	gbc_vbk,d6
 	beq.s	.same
-	move.b	d6,gbc_vbk
-	movem.l	d0/a0-a1,-(sp)
-	lea	gbc_vram,a0
-	tst.b	d6
-	beq.s	.b0
-	lea	$2000(a0),a0
-.b0:	move.l	a2,a1
-	add.l	#$8000,a1
-	move.w	#$2000/16-1,d0
-.c:	move.l	(a0)+,(a1)+
-	move.l	(a0)+,(a1)+
-	move.l	(a0)+,(a1)+
-	move.l	(a0)+,(a1)+
-	dbra	d0,.c
-	movem.l	(sp)+,d0/a0-a1
-	IFD	GBC_COUNT
 	addq.l	#1,gbc_nvbk
+.same:
 	ENDC
-.same:	or.b	#$fe,d6
+	move.b	d6,gbc_vbk
+	or.b	#$fe,d6
 	move.b	d6,(a2,d7.l)
+	rts
+
+; ---- CPU byte reads of VRAM (GBC_RD / GBC_BTST in z80_misc.s). In: the address ($8000-$9FFF,
+; upper word 0) in the register the entry names. Out: d6.b = the selected bank's byte, or $FF
+; while the LCD draws (mode 3, LCD on). Mode 3 is line M-cycles 20-63 at its shortest (172
+; dots); our sweeps are 0-23 (STAT 2), 23-46 and 46-69 (STAT 3, h_values), so with a5 = the
+; M-cycles left in the sweep: locked in sweep 0 when a5 < GBC_M3S, all of sweep 1, sweep 2
+; while a5 > GBC_M3E (twice these in double speed). STAT itself still says 3 for sweep 2.
+; From the hardware alone GBC_M3S would be 3 and GBC_M3E 6; against Mesen 2 (Dawn Will Come's
+; copy of VRAM into OBJ palette RAM across mode 3, 14 Nov 2026) our CPU sits about 4 M-cycles
+; early in the line, so 0 and 2: Mesen gets $FF for 12 bytes, we for those and the one
+; before (sweep 1 starts at M-cycle 23). DMG mode: the flat block as before. Keeps every other register; not the CCR.
+	IFND	GBC_M3S
+GBC_M3S	=0
+	ENDC
+	IFND	GBC_M3E
+GBC_M3E	=2
+	ENDC
+	cnop	0,4
+gbc_vrd_d0:
+	move.l	d0,d6
+	bra.s	gbc_vrd
+gbc_vrd_d1:
+	move.l	d1,d6
+	bra.s	gbc_vrd
+gbc_vrd_d7:
+	move.l	d7,d6
+	bra.s	gbc_vrd
+gbc_vrd_d2:
+	move.l	d2,d6
+gbc_vrd:
+	tst.b	gbc_mode
+	beq.s	.flat
+	movem.l	d5/a6,-(sp)
+	move.l	a2,a6
+	add.l	#$ff40,a6
+	btst	#7,(a6)			; LCD off: free
+	beq.s	.rd
+	moveq	#3,d5
+	and.b	1(a6),d5		; STAT mode
+	cmp.b	#3,d5
+	beq.s	.m3
+	cmp.b	#2,d5
+	bne.s	.rd
+	moveq	#GBC_M3S,d5		; sweep 0: its last GBC_M3S
+	mulu.w	gbc_ext+2,d5
+	cmp.l	a5,d5
+	bgt.s	.lock
+	bra.s	.rd
+.m3:	move.l	h_values_indexed,a6	; the next sweep's mode: 0 = this is sweep 2
+	tst.b	(a6)
+	bne.s	.lock
+	moveq	#GBC_M3E,d5
+	mulu.w	gbc_ext+2,d5
+	cmp.l	a5,d5
+	bge.s	.rd
+.lock:	movem.l	(sp)+,d5/a6
+	st	d6
+	IFD	GBC_COUNT
+	addq.l	#1,gbc_nvlock
+	ENDC
+	rts
+.rd:	lea	gbc_vram-$8000,a6
+	tst.b	gbc_vbk
+	beq.s	.b0
+	lea	$2000(a6),a6
+.b0:	move.b	(a6,d6.l),d6
+	movem.l	(sp)+,d5/a6
+	rts
+.flat:	move.b	(a2,d6.l),d6
 	rts
 
 ; SVBK: bank 0 selects 1; reads $F8 + the bits written
@@ -474,10 +549,14 @@ gbc_hblank:
 	bcc.s	.nr
 	btst	#7,$40(a6)
 	beq.s	.nr
+	tst.b	gbc_lineoff		; this frame's picture will be skipped: no lines
+	bne.s	.lo
 	jsr	gbc_line
 	IFD	GBC_LINE2		; test: twice (its cost = the time difference)
 	jsr	gbc_line
 	ENDC
+	bra.s	.nr
+.lo:	st	gbc_drawn		; (not an LCD-off frame)
 .nr:
 	ENDC
 	tst.w	gbc_stall
@@ -559,11 +638,13 @@ gbc_prep:	dc.b	0
 gbc_hact:	dc.b	0		; HBlank DMA running
 gbc_hlen:	dc.b	$7f
 gbc_paldirty:	dc.b	0
+gbc_vbl_late:	dc.b	0		; VBlank IF due at sweep 1 of line 144
 gbc_bcps:	dc.b	0
 gbc_ocps:	dc.b	0
 	even
 	IFD	GBC_COUNT
 gbc_nvbk:	dc.l	0
+gbc_nvlock:	dc.l	0		; VRAM reads that got $FF (mode 3)
 gbc_nsvbk:	dc.l	0
 gbc_npal:	dc.l	0
 gbc_ngdma:	dc.l	0

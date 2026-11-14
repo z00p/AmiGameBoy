@@ -246,6 +246,31 @@ HyVBL:	btst	#5,$dff01f
 	nop
 	rte
 
+	IFD	GBC_RENDER
+	IFND	NO_FRAMESKIP
+; ---- GBC_RENDER: the next frame's picture is sure to be skipped when the credit is two frames
+; or more ahead now (it only grows until that frame's end takes one) and the skip cap allows
+; it; then its lines are not drawn (gbc_lineoff, gbc_hblank). With AutoExit the last frame is
+; always drawn (its picture is the one saved). Keeps every register.
+GbcLineOff:
+	sf	gbc_lineoff
+	cmp.l	#$20000,HyCreditF
+	blt.s	.x
+	cmp.b	#HY_MAXSKIP,HySkipRun
+	bcc.s	.x
+	IFNE	AutoExit
+	move.l	d0,-(sp)
+	move.l	HyFrames,d0
+	addq.l	#1,d0
+	cmp.l	#AutoExit,d0
+	movem.l	(sp)+,d0		; (movem: the flags stay)
+	bcc.s	.x
+	ENDC
+	st	gbc_lineoff
+.x:	rts
+	ENDC
+	ENDC
+
 ; ---- engine hook at the start of LY 144 (all registers preserved)
 ; Pacing (docs/design-hybrid.md 3.3, frame skipping): the game clock runs off the Amiga
 ; VBL count, each VBL earning HY_VBLFRAMES/65536 Game Boy frames of time (credit). At
@@ -441,6 +466,15 @@ hybrid_frame:
 	or.b	#$f0,d0
 	move.b	d0,directions_byte
 	addq.l	#1,HyFrames
+	IFD	GBC_RENDER
+	IFND	NO_FRAMESKIP
+	IFND	HY_HOLD
+	IFND	GBC_ALLLINES		; test: draw every frame's lines (renderer timing)
+	bsr.w	GbcLineOff
+	ENDC
+	ENDC
+	ENDC
+	ENDC
 	IFD	HY_HOLD			; test: show frame HY_HOLD and stop there (grabs)
 	cmp.l	#HY_HOLD+1,HyFrames	; +1: the spike's frame 0 ends at the second LY 144 (as Mesen)
 	bcs.s	.run
@@ -648,6 +682,17 @@ GbcFbSave:
 	move.l	#gbc_obpal,d2
 	moveq	#64,d3
 	jsr	dosWrite(a6)
+	IFD	GBC_PACELOG		; test: then the count and the picture log (gbc_rtg.s)
+	move.l	d4,d1
+	move.l	#gbc_rpn,d2
+	moveq	#4,d3
+	jsr	dosWrite(a6)
+	move.l	d4,d1
+	move.l	#gbc_rplog,d2
+	move.l	gbc_rpn,d3
+	mulu.w	#12,d3
+	jsr	dosWrite(a6)
+	ENDC
 	move.l	d4,d1
 	jsr	dosClose(a6)
 .x:	rts

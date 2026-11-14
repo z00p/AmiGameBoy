@@ -47,113 +47,256 @@ gbc_line_init:
 	addq.w	#1,d0
 	cmp.w	#256,d0
 	bne.s	.r
+	lea	gbc_attl,a0		; attribute -> palette*4 (+ $40 priority) in all 4 bytes
+	moveq	#0,d0
+.a:	moveq	#7,d1
+	and.b	d0,d1
+	lsl.b	#2,d1
+	tst.b	d0
+	bpl.s	.ap
+	or.b	#$40,d1
+.ap:	move.b	d1,d2
+	lsl.w	#8,d1
+	move.b	d2,d1
+	move.w	d1,d2
+	swap	d1
+	move.w	d2,d1
+	move.l	d1,(a0)+
+	addq.w	#1,d0
+	cmp.w	#256,d0
+	bne.s	.a
+	lea	gbc_toff,a0		; tile number -> offset in the bank: $8000 mode, then $8800
+	moveq	#0,d0
+.o1:	move.w	d0,d1
+	lsl.w	#4,d1
+	move.w	d1,(a0)+
+	addq.w	#1,d0
+	cmp.w	#256,d0
+	bne.s	.o1
+	moveq	#0,d0
+.o2:	move.w	d0,d1
+	eor.w	#$80,d1			; signed from $9000: (n ^ $80) * 16 + $800
+	lsl.w	#4,d1
+	add.w	#$800,d1
+	move.w	d1,(a0)+
+	addq.w	#1,d0
+	cmp.w	#256,d0
+	bne.s	.o2
+	bsr.w	gbc_tdall
 	st	gbc_paldirty
 	movem.l	(sp)+,d0-d3/a0-a2
 	rts
 
-; ---- palette RAM (15-bit BGR, little-endian pairs) -> gbc_rgb, 64 words in the screen's format:
-; gbc_pixfmt bit 0 = bytes swapped (the PC formats), bit 1 = 5-5-5, bit 2 = BGR order;
-; 0 = R5G6B5 big-endian. A 6-bit green is g5 << 1 | g5 >> 4.
+; ---- every tile row needs decoding again (gbc_tdirty all set). Keeps every register.
+gbc_tdall:
+	movem.l	d0/a0,-(sp)
+	lea	gbc_tdirty,a0
+	move.w	#$3000/4-1,d0
+.d:	move.l	#-1,(a0)+
+	dbra	d0,.d
+	movem.l	(sp)+,d0/a0
+	rts
+
+; ---- decode one tile row into the row cache. In: d3.w = row index (bank * $1800 + offset of
+; the row's first byte in the bank, even), a3 = gbc_tdirty. gbc_tc + d3 * 4: the 8 pixels
+; (colour 0-3, a byte each, pixel 0 first), gbc_tcf + d3 * 4: X-flipped. Keeps every register.
+gbc_rowdec:
+	movem.l	d1-d2/d5/a2/a6,-(sp)
+	clr.w	(a3,d3.w)
+	move.w	d3,d1
+	cmp.w	#$1800,d1
+	bcs.s	.v0
+	add.w	#$800,d1		; bank 1 is at gbc_vram + $2000
+.v0:	lea	gbc_vram,a6
+	moveq	#0,d5
+	move.b	(a6,d1.w),d5		; low bits
+	moveq	#0,d2
+	move.b	1(a6,d1.w),d2		; high bits
+	lea	gbc_tc,a2
+	lea	(a2,d3.w*4),a2
+	lea	gbc_sp1,a6		; gbc_sp2 follows at +2048
+	move.l	(a6,d5.w*8),d1
+	or.l	2048(a6,d2.w*8),d1
+	move.l	d1,(a2)
+	move.l	4(a6,d5.w*8),d1
+	or.l	2048+4(a6,d2.w*8),d1
+	move.l	d1,4(a2)
+	lea	gbc_rev,a6
+	move.b	(a6,d5.w),d5
+	move.b	(a6,d2.w),d2
+	add.l	#gbc_tcf-gbc_tc,a2
+	lea	gbc_sp1,a6
+	move.l	(a6,d5.w*8),d1
+	or.l	2048(a6,d2.w*8),d1
+	move.l	d1,(a2)
+	move.l	4(a6,d5.w*8),d1
+	or.l	2048+4(a6,d2.w*8),d1
+	move.l	d1,4(a2)
+	movem.l	(sp)+,d1-d2/d5/a2/a6
+	rts
+
+; ---- palette RAM (15-bit BGR, little-endian pairs) -> gbc_rgb, 64 words in the screen's format,
+; looked up in gbc_ctab (built by gbc_mktab the first time, and again if gbc_pixfmt changed).
 gbc_mkrgb:
-	movem.l	d0-d5/a0-a1,-(sp)
+	movem.l	d0/d4/a0-a2,-(sp)
 	clr.b	gbc_paldirty
-	move.b	gbc_pixfmt,d5
-	lea	gbc_bgpal,a0		; gbc_obpal follows: 64 colours
+	move.b	gbc_pixfmt,d0
+	or.b	#$80,d0			; $80 = built
+	cmp.b	gbc_ctabfmt,d0
+	beq.s	.ok
+	bsr.w	gbc_mktab
+.ok:	lea	gbc_bgpal,a0		; gbc_obpal follows: 64 colours
 	lea	gbc_rgb,a1
+	lea	gbc_ctab,a2
 	moveq	#64-1,d4
 .c:	moveq	#0,d0
 	move.b	1(a0),d0
 	lsl.w	#8,d0
-	move.b	(a0),d0			; d0 = 0bbbbbgggggrrrrr
+	move.b	(a0),d0			; d0 = xbbbbbgggggrrrrr
 	addq.l	#2,a0
-	moveq	#$1f,d1
-	and.w	d0,d1			; r
-	move.w	d0,d2
-	lsr.w	#5,d2
-	and.w	#$1f,d2			; g5
-	lsr.w	#8,d0
-	lsr.w	#2,d0
-	and.w	#$1f,d0			; b
-	btst	#2,d5
-	beq.s	.rgb
-	exg	d0,d1			; BGR: blue in the top field
-.rgb:	btst	#1,d5
-	bne.s	.555
-	lsl.w	#8,d1
-	lsl.w	#3,d1			; top << 11
-	move.w	d2,d3
-	add.w	d3,d3
-	lsr.w	#4,d2
-	or.w	d2,d3
-	lsl.w	#5,d3			; g6 << 5
-	bra.s	.or
-.555:	lsl.w	#8,d1
-	lsl.w	#2,d1			; top << 10
-	move.w	d2,d3
-	lsl.w	#5,d3			; g5 << 5
-.or:	or.w	d3,d1
-	or.w	d0,d1
-	btst	#0,d5
-	beq.s	.be
-	rol.w	#8,d1
-.be:	move.w	d1,(a1)+
+	and.w	#$7fff,d0
+	move.w	(a2,d0.l*2),(a1)+
 	dbra	d4,.c
-	movem.l	(sp)+,d0-d5/a0-a1
+	lea	gbc_rgb,a0		; entries 64-127 = 0-63 (line bytes with the BG priority
+	lea	64*2(a0),a1		; bit 6 need no masking)
+	moveq	#64/2-1,d4
+.m:	move.l	(a0)+,(a1)+
+	dbra	d4,.m
+	movem.l	(sp)+,d0/d4/a0-a2
 	rts
 
-; ---- one 8-pixel tile row into the line buffer.
-; In: d0.w = row in the tile (0-7), d3.w = tile number, d4.b = attribute, d7.b = LCDC,
-; a4 = where its pixel 0 goes (advanced by 8). Uses d1/d3/d5/a1-a3.
-gbc_tile:
-	btst	#4,d7
-	bne.s	.u
-	ext.w	d3			; $8800 mode: signed, from $9000
-	add.w	#$100,d3
-.u:	lsl.w	#4,d3
+; ---- gbc_ctab: every 15-bit colour as a screen word. In: d0.b = gbc_pixfmt | $80 (bit 0 =
+; bytes swapped (the PC formats), bit 1 = 5-5-5, bit 2 = BGR order; 0 = R5G6B5 big-endian).
+; Each channel first as 8 bits: raw = c << 3 | c >> 2; GBC_CC = colour correction with the
+; weights of Mesen 2's GbcAdjustColors (the usual CGB LCD model): r' = (26r + 4g + 2b) / 4,
+; g' = (24g + 8b) / 4, b' = (6r + 4g + 22b) / 4, each at most 240. Then 5 bits = v >> 3, a
+; 6-bit green = v >> 2. Keeps every register.
+gbc_mktab:
+	movem.l	d0-d7/a0,-(sp)
+	move.b	d0,gbc_ctabfmt
+	move.b	d0,d7			; the format flags
+	lea	gbc_ctab,a0
+	moveq	#0,d6			; the colour
+.n:	moveq	#$1f,d0
+	and.w	d6,d0			; r
+	move.w	d6,d1
+	lsr.w	#5,d1
+	and.w	#$1f,d1			; g
+	move.w	d6,d2
+	lsr.w	#8,d2
+	lsr.w	#2,d2			; b
+	IFD	GBC_CC
+	move.w	d0,d3			; r' (d3)
+	mulu.w	#26,d3
+	move.w	d1,d4
+	lsl.w	#2,d4
+	add.w	d4,d3
+	move.w	d2,d4
+	add.w	d4,d4
+	add.w	d4,d3
+	lsr.w	#2,d3
+	move.w	d0,d5			; b' (d5)
+	mulu.w	#6,d5
+	move.w	d1,d4
+	lsl.w	#2,d4
+	add.w	d4,d5
+	move.w	d2,d4
+	mulu.w	#22,d4
+	add.w	d4,d5
+	lsr.w	#2,d5
+	move.w	d1,d4			; g' (d4)
+	mulu.w	#24,d4
+	lsl.w	#3,d2
+	add.w	d2,d4
+	lsr.w	#2,d4
+	move.w	#240,d0
+	cmp.w	d0,d3
+	bls.s	.c1
+	move.w	d0,d3
+.c1:	cmp.w	d0,d4
+	bls.s	.c2
+	move.w	d0,d4
+.c2:	cmp.w	d0,d5
+	bls.s	.c3
 	move.w	d0,d5
-	btst	#6,d4
-	beq.s	.ny
-	eor.w	#7,d5
-.ny:	add.w	d5,d5
-	add.w	d5,d3
-	lea	gbc_vram,a1
-	btst	#3,d4
-	beq.s	.b0
-	lea	$2000(a1),a1
-.b0:	moveq	#0,d5
-	move.b	(a1,d3.w),d5		; low bits
-	moveq	#0,d1
-	move.b	1(a1,d3.w),d1		; high bits
-	btst	#5,d4
-	beq.s	.nf
-	lea	gbc_rev,a1
-	move.b	(a1,d5.w),d5
-	move.b	(a1,d1.w),d1
-.nf:	lea	gbc_sp1,a2
-	lea	(a2,d5.w*8),a2
-	lea	gbc_sp2,a3
-	lea	(a3,d1.w*8),a3
-	moveq	#7,d1			; palette * 4, priority in bit 6, in all four bytes
-	and.b	d4,d1
-	lsl.b	#2,d1
-	tst.b	d4
-	bpl.s	.np
-	or.b	#$40,d1
-.np:	move.b	d1,d5
-	lsl.w	#8,d1
-	move.b	d5,d1
-	move.w	d1,d5
-	swap	d1
-	move.w	d5,d1
-	move.l	(a2)+,d5
-	or.l	(a3)+,d5
-	or.l	d1,d5
-	move.l	d5,(a4)+
-	move.l	(a2)+,d5
-	or.l	(a3)+,d5
-	or.l	d1,d5
-	move.l	d5,(a4)+
+.c3:
+	ELSE
+	move.w	d0,d3			; v = c << 3 | c >> 2
+	lsl.w	#3,d3
+	lsr.w	#2,d0
+	or.w	d0,d3
+	move.w	d1,d4
+	lsl.w	#3,d4
+	lsr.w	#2,d1
+	or.w	d1,d4
+	move.w	d2,d5
+	lsl.w	#3,d5
+	lsr.w	#2,d2
+	or.w	d2,d5
+	ENDC
+	btst	#2,d7
+	beq.s	.rgb
+	exg	d3,d5			; BGR: blue in the top field
+.rgb:	lsr.w	#3,d3
+	lsr.w	#3,d5
+	btst	#1,d7
+	bne.s	.555
+	lsr.w	#2,d4			; g6 << 5
+	lsl.w	#5,d4
+	moveq	#11,d0
+	lsl.w	d0,d3			; top << 11
+	bra.s	.or
+.555:	lsr.w	#3,d4			; g5 << 5
+	lsl.w	#5,d4
+	moveq	#10,d0
+	lsl.w	d0,d3			; top << 10
+.or:	or.w	d4,d3
+	or.w	d5,d3
+	btst	#0,d7
+	beq.s	.be
+	rol.w	#8,d3
+.be:	move.w	d3,(a0)+
+	addq.w	#1,d6
+	cmp.w	#$8000,d6
+	bcs.w	.n
+	movem.l	(sp)+,d0-d7/a0
 	rts
+
+; ---- one BG or window tile into the line buffer (a macro in the two tile loops). In: map byte
+; at (a0,d2.w), its attribute at $2000(a0,d2.w), d0.w = row * 2, d7.w = (7 - row) * 2,
+; a1 = gbc_attl, a3 = gbc_tdirty, a4 = where its pixel 0 goes (advanced by 8), a5 = gbc_toff
+; for LCDC bit 4. Uses d1/d3-d5/a2. The 8 pixels come from the row cache (gbc_tc, X-flipped
+; gbc_tcf), decoded again when a VRAM write marked the row (gbc_tdirty).
+GBC_BGT:	MACRO
+	moveq	#0,d3
+	move.b	(a0,d2.w),d3
+	move.w	(a5,d3.w*2),d3		; the tile's offset in its bank
+	moveq	#0,d4
+	move.b	$2000(a0,d2.w),d4	; attribute
+	btst	#6,d4
+	bne.s	.yf\@
+	add.w	d0,d3
+	bra.s	.yd\@
+.yf\@:	add.w	d7,d3			; Y flip
+.yd\@:	btst	#3,d4
+	beq.s	.k0\@
+	add.w	#$1800,d3		; bank 1
+.k0\@:	tst.w	(a3,d3.w)
+	beq.s	.cl\@
+	bsr.w	gbc_rowdec
+.cl\@:	move.l	(a1,d4.w*4),d1		; palette * 4 (+ $40) in each byte
+	lea	gbc_tc,a2
+	btst	#5,d4
+	beq.s	.nx\@
+	lea	gbc_tcf,a2		; X flip
+.nx\@:	lea	(a2,d3.w*4),a2
+	move.l	(a2)+,d5
+	or.l	d1,d5
+	move.l	d5,(a4)+
+	move.l	(a2),d5
+	or.l	d1,d5
+	move.l	d5,(a4)+
+	ENDM
 
 ; ---- frame end (hybrid_frame): with no line drawn since the last one (the LCD off all through
 ; the frame) the picture is white, as Mesen 2 shows it; with the LCD switched off part-way the
@@ -191,6 +334,12 @@ gbc_line:
 	beq.s	.pk
 	bsr.w	gbc_mkrgb
 .pk:	move.b	$40(a6),d7		; LCDC
+	lea	gbc_toff,a5		; tile offsets for LCDC bit 4
+	btst	#4,d7
+	bne.s	.t8
+	lea	256*2(a5),a5
+.t8:	lea	gbc_attl,a1
+	lea	gbc_tdirty,a3
 ; background (always fetched; LCDC bit 0 only takes priority away in CGB mode)
 	moveq	#0,d0
 	move.b	$42(a6),d0
@@ -205,6 +354,10 @@ gbc_line:
 	lea	$400(a0),a0
 .m0:	add.w	d2,a0
 	and.w	#7,d0
+	moveq	#7,d7
+	sub.w	d0,d7
+	add.w	d7,d7			; (7 - row) * 2
+	add.w	d0,d0			; row * 2
 	moveq	#0,d2
 	move.b	$43(a6),d2		; SCX
 	lea	gbc_lbuf+GBC_LB,a4
@@ -213,26 +366,24 @@ gbc_line:
 	sub.w	d1,a4
 	lsr.w	#3,d2
 	moveq	#21-1,d6
-.bt:	moveq	#0,d3
-	move.b	(a0,d2.w),d3
-	move.b	$2000(a0,d2.w),d4
-	bsr.w	gbc_tile
+.bt:	GBC_BGT
 	addq.w	#1,d2
 	and.w	#31,d2
 	dbra	d6,.bt
+	move.b	$40(a6),d7		; LCDC
 ; window
 	move.l	gb_scanlines,d6
 	tst.b	gbc_wintrig
 	bne.s	.wt
 	cmp.b	$4a(a6),d6		; the window starts on the first line where LY = WY
-	bne.s	.nowin
+	bne.w	.nowin
 	st	gbc_wintrig
 .wt:	btst	#5,d7
-	beq.s	.nowin
+	beq.w	.nowin
 	moveq	#0,d1
 	move.b	$4b(a6),d1
 	cmp.w	#166,d1
-	bhi.s	.nowin
+	bhi.w	.nowin
 	move.w	gbc_winline,d0
 	addq.w	#1,gbc_winline
 	move.w	d0,d2
@@ -246,14 +397,18 @@ gbc_line:
 	and.w	#7,d0
 	lea	gbc_lbuf+GBC_LB-7,a4
 	add.w	d1,a4			; pixel WX-7
+	move.w	#167,d6			; tiles from WX-7 to the right edge: (167 - WX) / 8 + 1
+	sub.w	d1,d6
+	lsr.w	#3,d6
+	moveq	#7,d7
+	sub.w	d0,d7
+	add.w	d7,d7
+	add.w	d0,d0
 	moveq	#0,d2
-	moveq	#21-1,d6
-.wl:	moveq	#0,d3
-	move.b	(a0,d2.w),d3
-	move.b	$2000(a0,d2.w),d4
-	bsr.w	gbc_tile
+.wl:	GBC_BGT
 	addq.w	#1,d2
 	dbra	d6,.wl
+	move.b	$40(a6),d7		; LCDC
 .nowin:
 ; objects
 	btst	#1,d7
@@ -267,21 +422,22 @@ gbc_line:
 	add.l	#$fe00,a0
 	lea	gbc_osel,a1
 	moveq	#0,d4			; found
+	move.w	d6,d3
+	add.w	#16,d3			; LY + 16
 	moveq	#40-1,d2
 .sc:	moveq	#0,d0
 	move.b	(a0),d0
-	sub.w	#16,d0			; top line
-	move.w	d6,d1
-	sub.w	d0,d1			; line in the object
-	bmi.s	.sn
+	move.w	d3,d1
+	sub.w	d0,d1			; the line in the object: below the height (unsigned)
 	cmp.w	d5,d1
-	bcc.s	.sn
-	move.l	a0,(a1)+
-	addq.w	#1,d4
-	cmp.w	#10,d4
-	beq.s	.sd
+	bcs.s	.hit
 .sn:	addq.l	#4,a0
 	dbra	d2,.sc
+	bra.s	.sd
+.hit:	move.l	a0,(a1)+
+	addq.w	#1,d4
+	cmp.w	#10,d4
+	bne.s	.sn
 .sd:	tst.w	d4
 	beq.w	.noobj
 	lea	gbc_otk,a2		; pixels already taken by an object
@@ -369,25 +525,32 @@ gbc_line:
 	move.l	gb_scanlines,d6
 	dbra	d4,.ob
 .noobj:
-; bytes -> RGB565 words into the frame
+; bytes -> screen words into the frame (gbc_rgb has 128 entries: bit 6 needs no mask)
 	move.l	gb_scanlines,d0
 	mulu.w	#160*2,d0
 	lea	gbc_fb,a1
 	add.l	d0,a1
 	lea	gbc_lbuf+GBC_LB,a0
 	lea	gbc_rgb,a2
-	move.w	#160-1,d1
+	moveq	#160/8-1,d1
 	moveq	#0,d0
-.cv:	move.b	(a0)+,d0
-	and.b	#$3f,d0
+.cv:	REPT	8
+	move.b	(a0)+,d0
 	move.w	(a2,d0.w*2),(a1)+
+	ENDR
 	dbra	d1,.cv
 	movem.l	(sp)+,d0-d7/a0-a6
 	rts
 
 	SECTION	gbclbss,BSS
 gbc_fb:		ds.w	160*144		; the picture, in the screen's format (gbc_pixfmt)
-gbc_rgb:	ds.w	64		; palette RAM as RGB565
+gbc_rgb:	ds.w	128		; palette RAM as screen words, twice (bit 6 = BG priority)
+gbc_attl:	ds.l	256		; attribute -> palette * 4 (+ $40 priority), 4 bytes
+gbc_toff:	ds.w	512		; tile number -> offset in its bank ($8000 mode, $8800 mode)
+gbc_tdirty:	ds.b	$3000		; per VRAM tile byte (bank 0, bank 1): the row needs decoding
+gbc_tc:		ds.b	$1800*8		; row cache: 8 pixel bytes (colour 0-3) per 2-byte row
+gbc_tcf:	ds.b	$1800*8		; the same, X-flipped
+gbc_ctab:	ds.w	32768		; 15-bit colour -> screen word (gbc_mktab)
 gbc_lbuf:	ds.b	GBC_LB+160+176	; one line, palette*4+colour bytes
 gbc_otk:	ds.b	160		; object already drawn there
 gbc_osel:	ds.l	10		; the line's objects (OAM addresses)
@@ -397,5 +560,7 @@ gbc_rev:	ds.b	256
 gbc_winline:	ds.w	1
 gbc_wintrig:	ds.b	1
 gbc_drawn:	ds.b	1		; a line drawn since the last frame end
+gbc_lineoff:	ds.b	1		; draw no lines this frame (its picture is skipped)
 gbc_pixfmt:	ds.b	1		; gbc_mkrgb's format flags (gbc_rtg_open)
+gbc_ctabfmt:	ds.b	1		; gbc_pixfmt | $80 that gbc_ctab was built for
 	even

@@ -185,6 +185,12 @@ spike_frame:
 ; checksum VRAM, OAM, LCD registers
 	move.l	gb_memory,a0
 	lea	$8000(a0),a1
+	IFD	HY_GBC
+	tst.b	gbc_vbk			; GBC: the bank the CPU sees (the flat block is bank 0)
+	beq.s	.ckb0
+	lea	gbc_vram+$2000,a1
+.ckb0:
+	ENDC
 	moveq	#0,d0
 	move.w	#$2000/4-1,d1
 .ck1:	rol.l	#1,d0
@@ -242,6 +248,15 @@ spike_frame:
 	move.l	(a1)+,(a2)+
 	move.l	(a1)+,(a2)+
 	dbra	d1,.dc
+	IFD	HY_GBC
+	tst.b	gbc_vbk			; GBC: VRAM as the CPU sees it
+	beq.s	.nodump
+	lea	-$8000(a2),a2
+	lea	gbc_vram+$2000,a1
+	move.w	#$2000/4-1,d1
+.dv:	move.l	(a1)+,(a2)+
+	dbra	d1,.dv
+	ENDC
 .nodump:
 	cmp.l	#SPIKE_FRAMES,d0
 	bcc.s	SpikeExit
