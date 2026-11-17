@@ -13,15 +13,27 @@
 ; the engine's place is kept on that stack and the menu comes back; Continue carries on.
 ; Juan's cartridge buffer keeps pages of $80 + $4000 bytes; the engine gets a flat copy.
 ; Battery RAM: Juan's ERAM0-3 (4 x 8 KB, the .sav file) <-> the engine's memory_banks,
-; on each start and pause.
+; on each start and pause. HY_SAVE128: MBC5 carts with 64/128 KB, banks 4-15 in ERAMX
+; (save128.s).
 ; Not wired yet: monitor/debugger, cheats, frozen games (Juan's Z80 state), the joystick
 ; type gadget (joystick + CD32 pad + keyboard always), Game Boy Color-only carts.
+; Colour build (HY_GBC GBC_RENDER GBC_RTG, GBC_DMG implied): every cart on the RTG screen through
+; the chunky renderer, Colour carts in CGB mode, mono ones with the DMG rules; the colour state
+; (gbcdata, gbc_install, gbc_line_init) and the screen are set up again at each Power On; the
+; screen is closed at each pause and opened again by Continue. No screen: an error box.
+; GBC_AGA instead of GBC_RTG (no GBC_DMG): Colour carts in colour on the native AGA display (the
+; chunky renderer + c2p, gbc_aga.s), set up at each Power On and Continue; mono carts on Juan's
+; display as in 1.0.
 ;
 ; Test switches (WinUAE): HY_PAUSEAT=n pauses at frame n as Esc would; HY_MENUTEST=1
 ; Continues after the first pause; HY_MENUTEST=2: AmiGameBoy ROM1 ROM2 powers ROM1 on,
 ; at the pause inserts ROM2, powers it on, Continues after its pause. With HY_HOLD the
 ; grabs compare with the cartridge-inside build. HY_MENUTEST=3: as 1, saving the battery
-; file (ROM name .sav) at the pause.
+; file (ROM name .sav) at the pause; HY_MENUTEST=4: as 3, the file written even when the
+; battery RAM did not change (Juan's SaveBatt skips that). HY_MENUPIC (with AutoExit,
+; GBC_RENDER): the last picture to GB:AmiGB.prof and the result to GB:AmiGB.result when
+; AutoExit stops the engine.
+; HY_LUPA: the launch words and return codes of the shared launch contract (lupa.s).
 
 	IFND	HY_MENUTEST
 HY_MENUTEST	=0
@@ -34,6 +46,9 @@ HY_PADCFG	=1			; the pad settings file (padcfg.s)
 	ENDC
 	IFND	NO_ASLPAT
 HY_ASLPAT	=1			; the Insert requester lists cartridges and drawers only
+	ENDC
+	IFND	NO_CARTINFO
+HY_CARTINFO	=1			; the info panel's mapper/ROM/RAM from the header (cartinfo.s)
 	ENDC
 HY_VBLNTSC	=65428			; Game Boy frames per NTSC VBL, 16.16 (59.7275 / 59.826)
 NameFromLock	=-402
@@ -51,7 +66,11 @@ Start:	movem.l	d2-d7/a2-a6,-(sp)
 	beq.s	.wb
 	move.l	a2,a0
 	move.l	d2,d0
+	IFD	HY_LUPA
+	jsr	LupaArgs		; -> HyArgPath, the launch words (lupa.s)
+	ELSE
 	bsr.w	HyArgs			; -> HyArgPath
+	ENDC
 .wb:
 	move.l	4.w,a6
 	move.l	a6,exec_base
@@ -72,8 +91,15 @@ Start:	movem.l	d2-d7/a2-a6,-(sp)
 	jsr	InitSistema
 	jsr	HyMenuSnap		; engine, sound, renderer state as at start
 	jsr	HyMenuTitles		; the 1.0 titles, then HyMenuAbout
+	IFD	GBC_RTGMENU
+	jsr	gbc_rtg_menumode	; the menu screen on the RTG board (gbc_rtg.s)
+	ENDC
 .menu:	bsr.w	GB_Menu			; Juan's menu, until Quit
+	IFD	HY_LUPA
+	move.l	LupaRC,d0		; the return code (lupa.s)
+	ELSE
 	moveq	#0,d0
+	ENDC
 	move.l	d0,-(sp)
 	jsr	HyCartFree
 	move.l	gb_mem_jumps,d0
@@ -148,6 +174,10 @@ HyAutoStart:
 	IFD	HY_ASLTEST		; test: the Insert requester at once (grabs)
 	jsr	Insert
 	ENDC
+	IFD	HY_LUPA
+	jsr	LupaPrep		; ToolTypes, the display word; Z clear: no start (lupa.s)
+	bne.w	.x
+	ENDC
 	tst.b	HyArgPath
 	bne.s	.have
 	move.l	MENSWB,d0		; Workbench start-up message
@@ -171,9 +201,17 @@ HyAutoStart:
 	jsr	AddPart(a6)
 	tst.l	d0
 	beq.w	.x
-.have:	bsr.s	HyAutoInsert
+.have:
+	IFD	HY_LUPA
+	jsr	LupaInsert		; Z set: no Power On (MENU, a load error)
+	ELSE
+	bsr.s	HyAutoInsert
+	ENDC
 	beq.w	.x
 	jsr	PowerON
+	IFD	HY_LUPA
+	jsr	LupaAfter		; ONEGAME: the program quits now
+	ENDC
 	IFNE	HY_MENUTEST
 	IFEQ	HY_MENUTEST-2
 	lea	HyArgPath2,a0		; test: a second cartridge after the pause
@@ -186,6 +224,12 @@ HyAutoStart:
 	ENDC
 	IFEQ	HY_MENUTEST-3
 	jsr	SaveBatt		; test: battery file at the pause
+	ENDC
+	IFEQ	HY_MENUTEST-4
+	jsr	CalChecksum		; test: battery file at the pause, written even unchanged
+	not.l	d2			; (SaveBatt writes when the sum differs from CheckId)
+	move.l	d2,CheckId
+	jsr	SaveBatt
 	ENDC
 	jsr	Continue
 	ENDC
@@ -223,7 +267,20 @@ HyMenuEmul:
 	bsr.w	HyBattIn
 	lea	Regs,a3
 	move.l	#-1,EstadoKeys(a3)
+	IFD	GBC_RTG			; the RTG screen again (closed at the pause)
+	bsr.w	HyRtgOpen
+	beq.w	.rtgerr			; none: back to the menu, Continue can be tried again
+	ENDC
+	IFD	HY_LUPA
+	jsr	LupaSettle		; no key or button held at the takeover (lupa.s)
+	ENDC
 	jsr	CongelaAMIGA
+	IFD	GBC_RTG
+	bsr.w	HyRtgDma
+	ENDC
+	IFD	GBC_AGA			; a colour cart: the AGA colour display (gbc_aga.s)
+	jsr	gbc_aga_on
+	ENDC
 	IFND	NO_SOUND
 	move.w	#$800f,$dff096		; voices on again (Paula kept their samples and
 	bsr.w	HySndAllVol		; periods), volumes back
@@ -242,9 +299,11 @@ HyMenuEmul:
 	beq.w	.nomem
 	move.l	DirCart,a0
 	lea	$80(a0),a0		; page 0
+	IFND	HY_GBC			; (HY_GBC: Colour-only carts run in CGB mode)
 	lea	tHyErrCGB,a1
 	cmp.b	#$c0,$143(a0)		; Game Boy Color only
 	beq.w	.err
+	ENDC
 	lea	tHyErrType,a1
 	move.b	$147(a0),d0		; Wzonka's mapper list has types 0-$1E and $FF
 	cmp.b	#$ff,d0
@@ -293,6 +352,17 @@ HyMenuEmul:
 	move.l	cartridge,a0
 	bsr.w	compute_jmp_lst		; write table (Wzonka)
 	bsr.w	HyPatchWrites		; our handlers for the renderer and sound
+	IFD	HY_GBC			; Game Boy Color: CGB registers (gbc.s; its state was put
+	move.l	gb_mem_jumps,a0		; back by HyMenuRestore), the line renderer, for each
+	jsr	gbc_install		; Power On
+	IFD	GBC_RENDER
+	jsr	gbc_line_init
+	sf	gbc_lineoff
+	ENDC
+	IFD	GBC_AGA			; the colour display's lists, planes and pens afresh
+	jsr	gbc_aga_init
+	ENDC
+	ENDC
 	IFND	NO_SOUND
 	clr.b	snd_quality
 	ELSE
@@ -335,7 +405,20 @@ HyMenuEmul:
 
 	move.l	4.w,a6
 	jsr	CacheClearU(a6)
+	IFD	GBC_RTG			; the 16-bit Picasso96 screen (gbc_rtg.s), OS alive
+	bsr.w	HyRtgOpen
+	beq.w	.nortg
+	ENDC
+	IFD	HY_LUPA
+	jsr	LupaSettle		; no key or button held at the takeover (lupa.s)
+	ENDC
 	jsr	CongelaAMIGA
+	IFD	GBC_RTG
+	bsr.w	HyRtgDma
+	ENDC
+	IFD	GBC_AGA			; a colour cart: the AGA colour display (gbc_aga.s)
+	jsr	gbc_aga_on
+	ENDC
 	IFND	NO_SOUND
 	bsr.w	HySndInit
 	ENDC
@@ -345,6 +428,12 @@ HyMenuEmul:
 	lea	HyEngStack+HY_ENGSTACK,sp
 	bra.w	run_cartridge		; Esc -> HyMenuPause, stop -> HyMenuExit
 
+	IFD	GBC_RTG
+.nortg:	clr.l	HyEngSP
+.rtgerr:
+	lea	tHyErrRtg,a1
+	bra.s	.err
+	ENDC
 .nomem:	lea	tErOutOfMem,a1
 .err:	move.l	a1,a0
 	jsr	ImpError
@@ -364,7 +453,28 @@ HyMenuLeave:
 	bsr.w	HySndStop
 	ENDC
 	jsr	DescongelaAMIGA
+	IFD	GBC_RTG
+	jsr	gbc_rtg_close		; the menu's screen back
+	ENDC
+	IFD	HY_LUPA
+	jsr	LupaSettle		; and the keys up again before the OS reads them (lupa.s)
+	ENDC
+	IFD	HY_MENUPIC		; test: at AutoExit the last picture to GB:AmiGB.prof,
+	IFNE	AutoExit		; then GB:AmiGB.result (uaerun --until)
+	tst.l	HyEngSP
+	bne.s	.nopic
+	IFD	GBC_RENDER
+	jsr	GbcFbSave
+	ENDC
+	jsr	HyResult
+.nopic:
+	ENDC
+	ENDC
+	IFD	HY_SAVE128		; (HyBattIn grew)
+	bsr.w	HyBattOut
+	ELSE
 	bsr.s	HyBattOut
+	ENDC
 HyMenuBack:
 	move.l	HyMenuSP,sp
 	movem.l	(sp)+,d0-d7/a0-a6
@@ -389,6 +499,9 @@ HyBattIn:
 	bsr.s	HyBank
 	lea	ERAM3,a0
 	bsr.s	HyBank
+	IFD	HY_SAVE128		; 64/128 KB carts: ERAMX -> banks 4-15 (save128.s)
+	jsr	HySaveIn
+	ENDC
 	move.l	ram_bank_no,d0
 	mulu.l	#$2000,d0
 	move.l	memory_banks,a0
@@ -420,6 +533,9 @@ HyBattOut:
 	bsr.s	HyBank
 	lea	ERAM3,a1
 	bsr.s	HyBank
+	IFD	HY_SAVE128		; 64/128 KB carts: banks 4-15 -> ERAMX (save128.s)
+	jsr	HySaveOut
+	ENDC
 	movem.l	(sp)+,d0/a0-a1
 	rts
 
@@ -430,6 +546,9 @@ HyBattOut:
 HyBattKbs:
 	move.l	d0,-(sp)
 	move.b	$80+$147(a0),d0
+	IFD	HY_SAVE128		; MBC5 with 64/128 KB: BattKbs 5/4 (save128.s)
+	jsr	HySaveKbs
+	ENDC
 	cmp.b	#5,d0
 	beq.s	.mbc2
 	cmp.b	#6,d0
@@ -513,6 +632,22 @@ HyCartFree:
 	clr.l	HyRom32
 	rts
 
+	IFD	GBC_RTG
+; ---- the RTG screen, OS alive (Power On and Continue; closed again at each pause, so the
+; menu is in front). Z set: no 16-bit Picasso96 screen.
+HyRtgOpen:
+	sf	gbc_rdbuf		; (gbc_rtg_open only ever sets it)
+	jsr	gbc_rtg_open
+	tst.b	gbc_rtg_on
+	rts
+; ---- after CongelaAMIGA: nothing of the display from chip RAM (as the cartridge-inside Start)
+HyRtgDma:
+	move.w	#$01a0,$dff096		; BPLEN, COPEN, SPREN off
+	move.w	#$0000,$dff180
+	move.w	#$0200,$dff100
+	rts
+	ENDC
+
 ; ---- engine (wzdata), sound and renderer (Regs) state: kept at start, put back at
 ; each Power On
 HyMenuSnap:
@@ -549,6 +684,9 @@ HySnapList:
 	dc.l	HyCh1,HySnapSnd,HySndEnd-HyCh1
 	ENDC
 	dc.l	Regs-$100,HySnapRegs,$1300
+	IFD	HY_GBC			; the colour engine's variables (gbc.s)
+	dc.l	gbc_dstart,HySnapGbc,(gbc_dend-gbc_dstart+3)&-4
+	ENDC
 	dc.l	0
 
 	SECTION	hybriddata,DATA
@@ -564,16 +702,29 @@ HyFakeReq:	dc.l	0,HyArgPath,HyNoDir	; fr_File, fr_Drawer for Juan's ArreglaNom
 HyNoDir:	dc.b	0
 tHyErrCGB:	dc.b	4,"Game Boy Color only",0,"Not supported yet",0
 tHyErrType:	dc.b	4,"Unknown cartridge type",0,"Not supported yet",0
+	IFD	GBC_RTG
+tHyErrRtg:	dc.b	4,"No RTG screen",0,"Needs a 16-bit Picasso96 mode",0
+	ENDC
+	IFD	HY_REL20		; the 2.0 release
+HyAb0:		dc.b	"AmiGameBoy 2.0 community version",0
+HyAb1:		dc.b	"(17 November 2026)",0
+	ELSE
 HyAb0:		dc.b	"AmiGameBoy 1.0 community version",0
 HyAb1:		dc.b	"(14 November 2026)",0
+	ENDC
 HyAb2:		dc.b	"Menu and display:",0
 HyAb4:		dc.b	"Game Boy engine (Wzonka-Lad):",0
 HyAb5:		dc.b	"Ville Helin, Ventzislav Tzvetkov",0
 HyAb6:		dc.b	"Icons and Graphics: Multivac",0
 HyAb7:		dc.b	"Community version: z00p",0
 HyAb8:		dc.b	"GNU GPL v2, no warranty",0
+	IFD	HY_REL20		; the 2.0 release
+HyWTitle:	dc.b	"AmiGameBoy 2.0",0
+HySTitle:	dc.b	"AmiGameBoy 2.0 community version. ",$a9," 1997-2026 "
+	ELSE
 HyWTitle:	dc.b	"AmiGameBoy 1.0",0
 HySTitle:	dc.b	"AmiGameBoy 1.0 community version. ",$a9," 1997-2026 "
+	ENDC
 		dc.b	"Juan Antonio G",$f3,"mez G",$e1,"lvez",0
 	even
 	IFD	HY_ASLPAT
@@ -582,7 +733,12 @@ HySTitle:	dc.b	"AmiGameBoy 1.0 community version. ",$a9," 1997-2026 "
 ; Juan's AllocAslRequest tags). The pattern can be widened in the requester (a packed
 ; cartridge under another name); it is set again at each Insert. Then Juan's tags.
 	SECTION	hyasldata,DATA
-HyInsTags:	dc.l	$8008000a,HyInsPat	; ASLFR_InitialPattern
+HyInsTags:
+	IFD	HY_ASLWIDE		; (15 Nov: the size column was cut off) nearly the screen's width
+	dc.l	$80080003,20		; ASLFR_InitialLeftEdge (Juan: 165)
+	dc.l	$80080005,600		; ASLFR_InitialWidth (Juan: ASL's default)
+	ENDC
+		dc.l	$8008000a,HyInsPat	; ASLFR_InitialPattern
 		dc.l	$8008002e,1		; ASLFR_DoPatterns
 		dc.l	2,InsLoadTags		; TAG_MORE
 HyInsPat:	dc.b	"#?.(gb|gbc|cgb)",0
@@ -613,3 +769,12 @@ ERAM2:	ds.b	8*1024
 ERAM3:	ds.b	8*1024
 	ds.b	$80
 	SECTION	hybrid,CODE
+	IFD	HY_SAVE128		; its hooks here and in Juan's menu add 52 bytes: 12 more make
+	ds.b	12			; it 64, so the engine behind moves by whole cache lines
+	ENDC
+	IFD	HY_CARTINFO
+	include	"cartinfo.s"
+	ENDC
+	IFD	HY_LUPA
+	include	"lupa.s"
+	ENDC

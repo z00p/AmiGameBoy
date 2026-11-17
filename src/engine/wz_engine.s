@@ -119,8 +119,14 @@ compute_jmp_lst:move.l	a0,d0
 
 no_huc1:	move.l	(a2,d0.l*4),a2			;mapper selected.
 
-mapper_ok_n:	move.b	$149(a0),d0			;d0 = amount of ram.
+mapper_ok_n:
+		IFD	HY_SAVE128			;AmiGameBoy: MBC5 with 64/128 KB ($149 = 5/4)
+		jsr	hy_ramidx			;takes the 128 KB list (hybrid/save128.s);
+		nop					;the same 8 bytes as the two below
+		ELSE
+		move.b	$149(a0),d0			;d0 = amount of ram.
 		and.b	#%11,d0				;max values.
+		ENDC
 		move.l	(a2,d0.l*4),a2			;list selected.
 
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
@@ -236,6 +242,9 @@ clear_misc_registers:
 		jsr	CacheClearU(a6)			;any help?
 
 		bsr.w	z80_start			;do the inits.
+		IFD	HY_GBC
+		jsr	gbc_start			;AmiGameBoy GBC: CGB hand-over state.
+		ENDC
 		bsr.w	push_z80			;push all the registers.
 
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
@@ -261,6 +270,13 @@ cartridge_loop:
 		move.l	#144,gb_scanlines
 		move.b	#144,$44(a6)
 		move.l	#h_values+144*5,h_values_indexed
+		IFD	HY_GBC
+		tst.b	gbc_mode			;AmiGameBoy GBC: the CGB boot ROM hands
+		beq.s	start144_skip			;over at LY 146.
+		move.l	#146,gb_scanlines
+		move.b	#146,$44(a6)
+		move.l	#h_values+146*5,h_values_indexed
+		ENDC
 start144_skip:
 		ENDC
 		IFND	NO_LCDONOFF			;AmiGameBoy: LCD switched on during
@@ -303,7 +319,11 @@ cmp_lyc_normal:
 		ENDC
 
 		btst.b	#1,irq_status_flags		;vbr effect?
+		IFD	NO_LYCVBL
 		beq.s	cmp_blank_no_filtering
+		ELSE					;AmiGameBoy: LY=LYC is compared on every
+		bra.s	cmp_blank_no_filtering		;line, $91-$99 too, as on the DMG (Chantey's
+		ENDC					;LYC 150 handler resets LCDC for the top).
 
 ;		move.l	gb_scanlines,d7
 ;;		beq.s	cmp_up				;$00 is off limits.
@@ -419,7 +439,17 @@ vbr_blank:	btst.b	#7,$40(a6)			;lcd operation?
 		ENDC
 
 		bset.b	#1,irq_status_flags
+		IFD	HY_GBC
+		IFND	NO_VBLLATE			;AmiGameBoy GBC: a running CPU sees LY 144
+		tst.b	z80_halt			;before the VBlank IF (set at sweep 1,
+		bne.s	gbc_vbn				;after a short sweep 0).
+		st	gbc_vbl_late
+		bra.s	gbc_vbx
+gbc_vbn:
+		ENDC
+		ENDC
 		bset.b	#0,$0f(a6)			;vbr occurred.
+gbc_vbx:
 
 		IFGT	GAMEBOY_DEBUG
 		bsr.w	debug_vbr
@@ -437,6 +467,18 @@ no_vbr_blank:	move.b	$0f(a6),d7
 		bne.s	no_interrupts_0
 
 dehalting_z80_0:
+		IFD	HY_GBC
+		IFND	NO_VBLLATE
+		tst.b	gbc_vbl_late			;AmiGameBoy GBC: another interrupt dispatches
+		beq.s	gbc_vld0			;now: VBlank joins it at once, as before.
+		sf	gbc_vbl_late
+		bset.b	#0,$0f(a6)
+		btst.b	#0,$ff(a6)
+		beq.s	gbc_vld0
+		bset	#0,d7
+gbc_vld0:
+		ENDC
+		ENDC
 		IFND	NO_IRQ5
 		subq.l	#5,sweep_extra			;AmiGameBoy: dispatch takes 5 M-cycles.
 		ENDC
@@ -487,7 +529,21 @@ halt_wake_0:
 		ENDC
 
 		IFND	NO_LINE114
+		IFD	HY_GBC
+		move.l	gbc_ext,d7			;AmiGameBoy GBC: 2 in double speed (46,46,46,46,44).
+		add.l	d7,sweep_extra
+		ELSE
 		addq.l	#1,sweep_extra			;AmiGameBoy: sweeps 23,23,23,23,22 = 114.
+		ENDC
+		ENDC
+		IFD	HY_GBC
+		IFND	NO_VBLLATE
+		tst.b	gbc_vbl_late			;AmiGameBoy GBC: line 144 with VBlank to come:
+		beq.s	gbc_vls0			;this sweep is 1 M-cycle (2 in double speed),
+		move.l	z80_cycles,d7			;its other cycles go to sweep 1.
+		sub.l	d7,sweep_extra
+gbc_vls0:
+		ENDC
 		ENDC
 		bsr.w	z80_cpu_next_sweep
 
@@ -509,6 +565,15 @@ no_ei_return_0:
 		ble.s	ln114_0				;the next sweep (a HALT leaves
 		moveq	#0,d7				;cycles over: nothing to carry).
 ln114_0:	move.l	d7,sweep_extra
+		IFD	HY_GBC
+		IFND	NO_VBLLATE
+		tst.b	gbc_vbl_late
+		beq.s	gbc_vle0
+		move.l	z80_cycles,d7
+		add.l	d7,sweep_extra
+gbc_vle0:
+		ENDC
+		ENDC
 		ENDC
 		IFGT	GAMEBOY_DEBUG
 		tst.b	debug_exit
@@ -522,6 +587,15 @@ ln114_0:	move.l	d7,sweep_extra
 cpu_halt_is_on_0:
 		move.l	a2,a6
 		add.l	#$ff00,a6
+		IFD	HY_GBC
+		IFND	NO_VBLLATE
+		tst.b	gbc_vbl_late			;AmiGameBoy GBC: the VBlank IF, 1 M-cycle into
+		beq.s	gbc_vli1			;line 144.
+		sf	gbc_vbl_late
+		bset.b	#0,$0f(a6)
+gbc_vli1:
+		ENDC
+		ENDC
 
 		IFLE	Z80_MODE
 		move.b	$07(a6),d7			;d7 = timer control byte.
@@ -594,6 +668,17 @@ no_transfer:
 		sub.b	d7,$04(a6)			;when the fraction carries.
 		ENDC
 		add.b	#1,$04(a6)			;DIVIDER register.
+		IFD	HY_GBC
+		IFND	NO_DIVRATE
+		tst.b	gbc_double			;AmiGameBoy GBC: DIV twice as fast in
+		beq.s	gbc_div_single			;double speed.
+		add.b	#200,div_frac
+		scs	d7
+		sub.b	d7,$04(a6)
+		add.b	#1,$04(a6)
+gbc_div_single:
+		ENDC
+		ENDC
 		and.b	#%11111100,$41(a6)
 
 		move.l	h_values_indexed,a5
@@ -681,7 +766,12 @@ halt_wake_1:
 		ENDC
 
 		IFND	NO_LINE114
+		IFD	HY_GBC
+		move.l	gbc_ext,d7			;AmiGameBoy GBC: 2 in double speed (46,46,46,46,44).
+		add.l	d7,sweep_extra
+		ELSE
 		addq.l	#1,sweep_extra			;AmiGameBoy: sweeps 23,23,23,23,22 = 114.
+		ENDC
 		ENDC
 		bsr.w	z80_cpu_next_sweep
 
@@ -799,7 +889,12 @@ halt_wake_2:
 		ENDC
 
 		IFND	NO_LINE114
+		IFD	HY_GBC
+		move.l	gbc_ext,d7			;AmiGameBoy GBC: 2 in double speed (46,46,46,46,44).
+		add.l	d7,sweep_extra
+		ELSE
 		addq.l	#1,sweep_extra			;AmiGameBoy: sweeps 23,23,23,23,22 = 114.
+		ENDC
 		ENDC
 		bsr.w	z80_cpu_next_sweep
 
@@ -875,6 +970,9 @@ no_timer_update_3:
 lcdoff_stat_3:
 		ENDC
 		or.b	d6,$41(a6)
+		IFD	HY_GBC
+		jsr	gbc_hblank			;AmiGameBoy GBC: HBlank DMA, speed switch.
+		ENDC
 
 		IFLE	Z80_MODE
 		cmp.l	#144,gb_scanlines
@@ -951,7 +1049,12 @@ halt_wake_3:
 		ENDC
 
 		IFND	NO_LINE114
+		IFD	HY_GBC
+		move.l	gbc_ext,d7			;AmiGameBoy GBC: 2 in double speed (46,46,46,46,44).
+		add.l	d7,sweep_extra
+		ELSE
 		addq.l	#1,sweep_extra			;AmiGameBoy: sweeps 23,23,23,23,22 = 114.
+		ENDC
 		ENDC
 		bsr.w	z80_cpu_next_sweep
 
@@ -1923,6 +2026,12 @@ input_gbs_load:	bsr.w	runtime_gbs_load
 irq_timer:	and.l	#%11,d7				;save the frequency value.
 		lea	freq_table,a5			;a5 = the value table.
 		move.l	(a5,d7.w*4),d6			;d6 = the freq*4096/60/154/5.
+		IFD	HY_GBC
+		tst.b	gbc_double			;AmiGameBoy GBC: the timer twice as
+		beq.s	gbc_tim_single			;fast in double speed.
+		add.l	d6,d6
+gbc_tim_single:
+		ENDC
 		add.l	freq_storage,d6			;add the old value.
 		move.l	d6,d7				;store the value.
 		lsr.l	#8,d6

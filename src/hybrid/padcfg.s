@@ -13,6 +13,7 @@
 ;   Red = A        buttons: Red Blue Green Yellow L R Play
 ;                  choices: A B Select Start Up Down Left Right Nothing
 ; A line that does not parse leaves that button as it was (the default).
+; HY_CD32KIT: "Pad = CD32 pad" (default) or "Pad = KTRL CD32+" picks the read (cd32read.s).
 ; A shoulder button held with Play goes back to the menu whatever the file says.
 ;
 ; All of it sits in sections of its own: nothing in the engine's section moves (the
@@ -86,6 +87,24 @@ HyPadCfg:
 	move.l	sp,a0
 	jsr	HyCfgExtra
 	ENDC
+	IFD	GBC_BLEND		; RTG LCD blend on/off (gbc_rtg.s)
+	move.l	sp,a0			; (a1: the end, as HyPadParse left it)
+	jsr	gbc_blendcfg
+	ENDC
+	IFD	GBC_RBEZ		; RTG bezel and scanlines (gbc_rtg.s)
+HY_RCFG	SET	1
+	ENDC
+	IFD	GBC_RSCAN
+HY_RCFG	SET	1
+	ENDC
+	IFD	HY_RCFG
+	move.l	sp,a0
+	jsr	gbc_rcfg
+	ENDC
+	IFD	HY_CD32KIT		; "Pad = CD32 pad | KTRL CD32+" (cd32read.s)
+	move.l	sp,a0
+	jsr	HyCD32Cfg
+	ENDC
 .read:	lea	PADBUF(sp),sp
 	bra.s	.done
 .new:	move.l	#HyPadCfgName,d1	; none: write the defaults, to be edited
@@ -110,6 +129,12 @@ HyPadCfg:
 	move.l	#HyPadMap,d2
 	moveq	#14,d3
 	jsr	-48(a6)
+	IFD	HY_CD32KIT		; then the Pad line's read: 0 or 2 (the low clock)
+	move.l	d4,d1
+	move.l	#HyCD32Low,d2
+	moveq	#1,d3
+	jsr	-48(a6)
+	ENDC
 	move.l	d4,d1
 	jsr	-36(a6)
 .notest:
@@ -287,6 +312,11 @@ HyPadCfgText:
 	dc.b	"L = Nothing",10
 	dc.b	"R = Nothing",10
 	dc.b	"Play = Start",10
+	IFD	HY_CD32KIT
+	dc.b	"; Pad: how the CD32 pad is read. CD32 pad (the usual way) or KTRL CD32+",10
+	dc.b	"; (another way: try it if a held button flickers or drops out).",10
+	dc.b	"Pad = CD32 pad",10
+	ENDC
 	IFND	NO_BEZEL
 	dc.b	"; Bezel = On draws a handheld around the picture.",10
 	dc.b	"Bezel = Off",10
@@ -294,6 +324,24 @@ HyPadCfgText:
 	IFND	NO_TINT
 	dc.b	"; Tint: Grey (the palette chosen in the menu), Green or Yellow.",10
 	dc.b	"Tint = Grey",10
+	ENDC
+	IFD	GBC_BLEND
+	dc.b	"; Blend = On mixes each picture with the one before, as the LCD did:",10
+	dc.b	"; no sprite flicker. Off: every picture as the game drew it. (RTG only)",10
+	dc.b	"Blend = On",10
+	ENDC
+	IFD	GBC_RBEZ
+	dc.b	"; Bezel = On draws a screen surround round the picture. (RTG only)",10
+	IFD	GBC_RBEZON
+	dc.b	"Bezel = On",10
+	ELSE
+	dc.b	"Bezel = Off",10
+	ENDC
+	ENDC
+	IFD	GBC_RSCAN
+	dc.b	"; Scanlines = On darkens the last screen line of each picture line,",10
+	dc.b	"; like a CRT. (RTG only)",10
+	dc.b	"Scanlines = Off",10
 	ENDC
 HyPadCfgEnd:
 	even

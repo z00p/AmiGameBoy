@@ -1,17 +1,24 @@
-Short:        Game Boy emulator for AGA, community version
+Short:        Game Boy + Color emulator, AGA and RTG
 Author:       Juan Antonio Gomez Galvez, Ville Helin, Ventzislav Tzvetkov, z00p
 Uploader:     Zoopster (JCEC_1@yahoo.co.uk)
 Type:         misc/emu
-Version:      1.0
+Version:      2.0
+Replaces:     misc/emu/AmiGameBoyCE.lha
 Architecture: m68k-amigaos >= 3.0.0
-Requires:     AGA, 68020+ (68030/50 or faster recommended)
+Requires:     AGA, 68020+ (68030/50 for mono, PiStorm-class for colour)
 Distribution: Aminet
 
-AmiGameBoy is a Game Boy emulator for AGA Amigas, in 68020+ assembly. It
-plays the games of the original mono Game Boy (.gb files) with sound,
-battery saves and a CD32 pad. It is written for an A1200 with a 68030/50
-and faster machines (PiStorm, BigMig, Minimig, 68040/68060 cards). While
-a game runs it takes over the machine and drives the AGA chips directly.
+AmiGameBoy is a Game Boy and Game Boy Color emulator for AGA Amigas, in
+68020+ assembly. It plays .gb and .gbc cartridges with sound, battery
+saves and a CD32 pad, on the AGA screen or on a graphics board (RTG).
+While a game runs it takes over the machine.
+
+There are three programs:
+  AGA       Game Boy and Game Boy Color on the AGA screen, for fast
+            machines (PiStorm, BigMig, 68060 cards).
+  AGA 030   Game Boy only, for an A1200 with a 68030/50.
+  RTG       Game Boy and Game Boy Color on a 16-bit Picasso96 screen,
+            with a screen surround.
 
 History
 -------
@@ -19,57 +26,62 @@ Juan Antonio Gomez Galvez began AmiGameBoy in 1996-97; his last public
 version was 0.96. In 2026 he sent his sources for the community to carry
 on. This community version, released with his consent, keeps his menu
 and his AGA display and runs the games on the Game Boy engine of
-Wzonka-Lad by Ville Helin and Ventzislav Tzvetkov (GPL-2), which adds
-the timer, the memory controllers, battery saves and sound.
+Wzonka-Lad by Ville Helin and Ventzislav Tzvetkov (GPL-2).
 
-New in 1.0
-----------
-- The Game Boy engine of Wzonka-Lad behind Juan's menu and display: one
-  program, AGA.
-- Four-channel sound on Paula.
-- Cartridge types MBC1, MBC2, MBC3 and MBC5 up to 2 MB, battery saves
-  (.sav beside the cartridge).
-- CD32 pad, with the buttons editable in AmiGameBoy.config.
-- A cartridge can be given in the Shell (AGA game.gb) or by a project
-  icon. The Insert requester lists cartridges and drawers only.
-- Palettes that change down the screen are followed line by line.
-- Full source included, GPL-2.
+2.0   Game Boy Color: the AGA and RTG programs play colour cartridges
+      (colour-only and dual-mode). The RTG program draws on a graphics
+      board, with a screen surround (Bezel), LCD blend and scanlines,
+      each set in AmiGameBoy.config. Saves of up to 128 KB. CD32 pad:
+      a steadier read, and "Pad = KTRL CD32+" for pads and adapters
+      whose buttons flicker or drop out. Fixed: Infinity, Chantey's
+      intro band, Last Crown Warriors' story pages. The Help page shows
+      the pad layout in use; the menu cartridge info reads the whole
+      header.
+1.0   The Game Boy engine of Wzonka-Lad behind Juan's menu and display;
+      four-channel sound on Paula; MBC1, MBC2, MBC3 and MBC5 cartridges
+      with battery saves; CD32 pad with buttons set in AmiGameBoy.config;
+      cartridges from the Shell or a project icon.
 
 Requirements
 ------------
 - An AGA Amiga with AmigaOS 3.0 or later.
-- A 68020 or better; a 68030 at 50 MHz or faster for full speed.
+- AGA 030: a 68020 or better; a 68030 at 50 MHz for full speed.
+- AGA and RTG: a much faster machine (a PiStorm runs colour games at
+  full speed). RTG also needs Picasso96 and a 16-bit screen mode.
 - Memory: about twice the cartridge's size plus 256 KB.
 
 Installation
 ------------
-Unpack the archive anywhere. In the AmiGameBoy drawer start AGA, choose
-Insert, pick a .gb file, then Power ON. Esc returns to the menu. See
-ReadMe.txt or AmiGameBoy.guide for the keys, the pad and the saves.
+Unpack the archive anywhere. In the AmiGameBoy drawer start AGA, AGA
+030 or RTG, choose Insert, pick a cartridge, then Power ON. Esc returns
+to the menu. See ReadMe.txt or AmiGameBoy.guide for the keys, the pad,
+the settings and the saves. Upgrading from 1.0: unpack over it. On a
+68030/50 start AGA 030 from now on (AGA is now the colour program).
+AmiGameBoy.config is kept; the RTG lines (Blend, Bezel, Scanlines) can
+be added by hand, or delete the file to have it written again.
 
 No games are included. You need cartridge images of your own, copies you
 may legally have.
 
 Not supported
 -------------
-Game Boy Color-only cartridges (refused with a message), the colour mode
-of dual-mode cartridges (they run in mono), the link cable, Super Game
-Boy features.
+Cartridges over 2 MB, the link cable, the Game Boy Camera and Printer,
+Super Game Boy features. AGA 030 refuses colour-only cartridges and runs
+dual-mode ones in mono.
 
 Known issues
 ------------
-- Infinity hangs before its title.
-- Last Crown Warriors: the story pages show a grey background (cosmetic).
-- Chantey: a white band in the intro (cosmetic).
 - Final Fantasy Legend II and Mega Man V run slower on a 68030/50.
-- Cartridges with a 128 KB save (e.g. Last Crown Warriors) are untested.
+- AGA and AGA 030: a thin light line can show down the left edge of the
+  picture (cosmetic).
 
 Credits
 -------
 - Juan Antonio Gomez Galvez: AmiGameBoy, the menu and the display.
 - Ville Helin and Ventzislav Tzvetkov: Wzonka-Lad, the Game Boy engine.
 - Multivac: icons and graphics in Juan's original.
-- z00p: the community version, sound.
+- z00p: the community version, sound, Game Boy Color.
+- Afrotechmods / FAmiga: the CD32 pad read.
 
 Licence
 -------
@@ -79,5 +91,6 @@ https://github.com/z00p/AmiGameBoy
 
 Reporting problems
 ------------------
-Please report a game that misbehaves with its name and your machine at
+Please report a game that misbehaves with its name, the program (AGA,
+AGA 030 or RTG) and your machine at
 https://github.com/z00p/AmiGameBoy/issues

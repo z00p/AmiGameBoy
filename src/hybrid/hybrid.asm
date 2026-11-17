@@ -52,6 +52,19 @@ HY_PACELINE	=190		; NO_SNDPACE off: earliest beam line for a skipped frame
 
 	IFD	HY_MENU
 NO_WBSTART	=1		; Juan's menu takes the Workbench message
+	IFD	GBC_RENDER		; the colour menu build: mono carts through the chunky
+	IFND	GBC_AGA			; renderer too (gbc_line.s); not on AGA, where mono
+GBC_DMG		SET	1		; carts keep Juan's display (gbc_aga.s)
+	ENDC
+	ENDC
+	ENDC
+	IFD	GBC_AGA			; colour on the AGA display: the chunky renderer + c2p
+	IFND	GBC_RENDER
+	FAIL	"GBC_AGA needs HY_GBC and GBC_RENDER"
+	ENDC
+	IFD	GBC_RTG
+	FAIL	"GBC_AGA or GBC_RTG, not both"
+	ENDC
 	ENDC
 ; exec / dos offsets
 AllocMem	=-198
@@ -155,6 +168,16 @@ Start:	movem.l	d2-d7/a2-a6,-(sp)
 	move.l	cartridge,a0
 	bsr.w	compute_jmp_lst		; write table (Wzonka)
 	bsr.w	HyPatchWrites		; our handlers for the renderer
+	IFD	HY_GBC			; Game Boy Color: CGB registers (gbc.s), the line renderer
+	move.l	gb_mem_jumps,a0
+	jsr	gbc_install
+	IFD	GBC_RENDER
+	jsr	gbc_line_init
+	ENDC
+	IFD	GBC_AGA
+	jsr	gbc_aga_init
+	ENDC
+	ENDC
 
 	IFND	NO_SOUND
 	clr.b	snd_quality		; per-line hook on: Paula sound (sound.s)
@@ -194,7 +217,21 @@ Start:	movem.l	d2-d7/a2-a6,-(sp)
 
 	move.l	4.w,a6
 	jsr	CacheClearU(a6)
+	IFD	GBC_RTG			; test: the 16-bit Picasso96 screen, OS alive (gbc_rtg.s)
+	jsr	gbc_rtg_open
+	ENDC
 	jsr	CongelaAMIGA		; take the machine (VBL vector -> HyVBL)
+	IFD	GBC_RTG
+	tst.b	gbc_rtg_on		; RTG: nothing of the display from chip RAM
+	beq.s	.nortg
+	move.w	#$01a0,$dff096		; BPLEN, COPEN, SPREN off
+	move.w	#$0000,$dff180
+	move.w	#$0200,$dff100
+.nortg:
+	ENDC
+	IFD	GBC_AGA			; a colour cart: the AGA colour display (gbc_aga.s)
+	jsr	gbc_aga_on
+	ENDC
 	IFND	NO_SOUND
 	bsr.w	HySndInit		; Paula voices on, silent
 	ENDC
@@ -216,6 +253,14 @@ HyHoldMsg:	dc.b	"HOLD",13,10,0
 HyVBL:	btst	#5,$dff01f
 	beq.s	.x
 	addq.l	#1,HyVblN
+	IFD	GBC_AGA			; the colour display's flip: the copper on the new list
+	tst.b	gbc_apend
+	beq.s	.nf
+	move.l	gbc_apcop,$dff080
+	move.w	#0,$dff088
+	sf	gbc_apend
+.nf:
+	ENDC
 	IFND	NO_SOUND
 	tst.b	HySndPend		; noise sample switch: voice 3 DMA back on
 	beq.s	.x
@@ -228,6 +273,31 @@ HyVBL:	btst	#5,$dff01f
 	nop
 	rte
 
+	IFD	GBC_RENDER
+	IFND	NO_FRAMESKIP
+; ---- GBC_RENDER: the next frame's picture is sure to be skipped when the credit is two frames
+; or more ahead now (it only grows until that frame's end takes one) and the skip cap allows
+; it; then its lines are not drawn (gbc_lineoff, gbc_hblank). With AutoExit the last frame is
+; always drawn (its picture is the one saved). Keeps every register.
+GbcLineOff:
+	sf	gbc_lineoff
+	cmp.l	#$20000,HyCreditF
+	blt.s	.x
+	cmp.b	#HY_MAXSKIP,HySkipRun
+	bcc.s	.x
+	IFNE	AutoExit
+	move.l	d0,-(sp)
+	move.l	HyFrames,d0
+	addq.l	#1,d0
+	cmp.l	#AutoExit,d0
+	movem.l	(sp)+,d0		; (movem: the flags stay)
+	bcc.s	.x
+	ENDC
+	st	gbc_lineoff
+.x:	rts
+	ENDC
+	ENDC
+
 ; ---- engine hook at the start of LY 144 (all registers preserved)
 ; Pacing (docs/design-hybrid.md 3.3, frame skipping): the game clock runs off the Amiga
 ; VBL count, each VBL earning HY_VBLFRAMES/65536 Game Boy frames of time (credit). At
@@ -237,6 +307,12 @@ HyVBL:	btst	#5,$dff01f
 ; NO_FRAMESKIP: draw every frame after a VBL (the game runs at the screen rate).
 hybrid_frame:
 	movem.l	d0-d7/a0-a6,-(sp)
+	IFD	GBC_APROF		; test rows: the engine's lap (gbc_aga.s)
+	jsr	gbc_qeng
+	ENDC
+	IFD	GBC_RENDER
+	jsr	gbc_frame_end		; LCD off all frame: white
+	ENDC
 	IFD	HY_FRAMELOG
 	bsr.w	HyFLogAdd
 	ENDC
@@ -284,6 +360,9 @@ hybrid_frame:
 	ENDC
 	bra.w	.drawn
 .draw:	sf	HySkipRun
+	IFD	GBC_APROF		; test rows: the wait starts
+	jsr	gbc_qwt0
+	ENDC
 	IFD	HY_IDLE			; test: beam lines spent waiting to draw (spare time)
 	move.l	$dff004,d0
 	lsr.l	#8,d0
@@ -307,6 +386,9 @@ hybrid_frame:
 .wait:	cmp.l	HyVblN,d0
 	beq.s	.wait
 .go:
+	IFD	GBC_APROF		; test rows: ... and ends
+	jsr	gbc_qwt1
+	ENDC
 	IFD	HY_IDLE
 	move.l	$dff004,d0
 	lsr.l	#8,d0
@@ -332,7 +414,21 @@ hybrid_frame:
 	bsr.w	HyBeam
 	move.l	d0,-(sp)
 	ENDC
+	IFD	GBC_RTG
+	jsr	gbc_rtg_show		; test: the GBC frame to the RTG screen
+	ELSE
+	IFD	GBC_AGA			; a colour cart: c2p to the AGA colour display
+	tst.b	gbc_aga_onf
+	beq.s	.juan
+	jsr	gbc_aga_show
+	bra.s	.shown
+.juan:
+	ENDC
 	jsr	HyBuild			; Juan's frame tick: copper, tiles, OBJs, palette
+	IFD	GBC_AGA
+.shown:
+	ENDC
+	ENDC
 	IFD	HY_PROF
 	bsr.w	HyBeam
 	sub.l	(sp)+,d0
@@ -394,7 +490,14 @@ hybrid_frame:
 	move.b	d0,buttons_byte
 	IFD	HY_PRESS		; test: Start for 6 frames in every 200 up to frame 1200
 	move.l	HyFrames,d0		; (gets past title screens for grabs); HY_PRESS=2:
-	IFEQ	HY_PRESS-2		; Start and A for 6 in every 100 up to 2400
+	IFEQ	HY_PRESS-3		; Start and A for 6 in every 100 up to 2400;
+	sub.l	#2400,d0		; HY_PRESS=3: Start and A for 6 in every 150
+	bcs.s	.nopr			; from 2400 to 6000 (Chantey's house room)
+	cmp.l	#3600,d0
+	bcc.s	.nopr
+	divu.w	#150,d0
+	ELSE
+	IFEQ	HY_PRESS-2
 	cmp.l	#2400,d0
 	bcc.s	.nopr
 	divu.w	#100,d0
@@ -403,11 +506,12 @@ hybrid_frame:
 	bcc.s	.nopr
 	divu.w	#200,d0
 	ENDC
+	ENDC
 	swap	d0
 	cmp.w	#6,d0
 	bcc.s	.nopr
 	bclr	#3,buttons_byte
-	IFEQ	HY_PRESS-2
+	IFGE	HY_PRESS-2
 	bclr	#0,buttons_byte
 	ENDC
 .nopr:
@@ -416,6 +520,15 @@ hybrid_frame:
 	or.b	#$f0,d0
 	move.b	d0,directions_byte
 	addq.l	#1,HyFrames
+	IFD	GBC_RENDER
+	IFND	NO_FRAMESKIP
+	IFND	HY_HOLD
+	IFND	GBC_ALLLINES		; test: draw every frame's lines (renderer timing)
+	bsr.w	GbcLineOff
+	ENDC
+	ENDC
+	ENDC
+	ENDC
 	IFD	HY_HOLD			; test: show frame HY_HOLD and stop there (grabs)
 	cmp.l	#HY_HOLD+1,HyFrames	; +1: the spike's frame 0 ends at the second LY 144 (as Mesen)
 	bcs.s	.run
@@ -447,6 +560,9 @@ hybrid_frame:
 	bne.w	HyMenuPause		; back to the menu, Continue comes back here
 	ELSE
 	bne.s	HyExit
+	ENDC
+	IFD	GBC_APROF		; test rows: the frame end's lap, the window
+	jsr	gbc_qend
 	ENDC
 	movem.l	(sp)+,d0-d7/a0-a6
 	rts
@@ -500,8 +616,14 @@ HyExit:
 	bsr.w	HySndStop
 	ENDC
 	jsr	DescongelaAMIGA
+	IFD	GBC_RTG
+	jsr	gbc_rtg_close
+	ENDC
 	IFNE	AutoExit
 	bsr.w	HyResult
+	IFD	GBC_RENDER
+	bsr.w	GbcFbSave
+	ENDC
 	ENDC
 	IFD	HY_FRAMELOG
 	bsr.w	HyFLogSave
@@ -587,6 +709,60 @@ HyFLogSave:
 .x:	rts
 	ENDC
 
+	IFD	GBC_RENDER
+	IFNE	AutoExit
+; test: GB:AmiGB.prof = "RTG2", the frame number, gbc_pixfmt (long), the last frame (gbc_fb,
+; 160 x 144 words in that format),
+; palette RAM (BG 64 + OBJ 64 bytes) for tools/gbc_pic.py
+GbcFbSave:
+	IFD	GBC_AGA			; AGA: the planes and copper colours ("AGA1", gbc_aga.s)
+	jmp	gbc_asave
+	ENDC
+	move.l	HyDosBase,a6
+	move.l	#GbcFbName,d1
+	move.l	#MODE_NEWFILE,d2
+	jsr	dosOpen(a6)
+	move.l	d0,d4
+	beq.s	.x
+	move.l	HyFrames,GbcFbHead+4
+	move.b	gbc_pixfmt,GbcFbHead+11
+	move.l	d4,d1
+	move.l	#GbcFbHead,d2
+	moveq	#12,d3
+	jsr	dosWrite(a6)
+	move.l	d4,d1
+	move.l	#gbc_fb,d2
+	move.l	#160*144*2,d3
+	jsr	dosWrite(a6)
+	move.l	d4,d1
+	move.l	#gbc_bgpal,d2
+	moveq	#64,d3
+	jsr	dosWrite(a6)
+	move.l	d4,d1
+	move.l	#gbc_obpal,d2
+	moveq	#64,d3
+	jsr	dosWrite(a6)
+	IFD	GBC_PACELOG		; test: then the count and the picture log (gbc_rtg.s)
+	move.l	d4,d1
+	move.l	#gbc_rpn,d2
+	moveq	#4,d3
+	jsr	dosWrite(a6)
+	move.l	d4,d1
+	move.l	#gbc_rplog,d2
+	move.l	gbc_rpn,d3
+	mulu.w	#12,d3
+	jsr	dosWrite(a6)
+	ENDC
+	move.l	d4,d1
+	jsr	dosClose(a6)
+.x:	rts
+GbcFbHead:	dc.b	"RTG2"
+	dc.l	0,0
+GbcFbName:	dc.b	"GB:AmiGB.prof",0
+	even
+	ENDC
+	ENDC
+
 	IFNE	AutoExit
 ; RAM:AmiGB.result "frames=xxxxxxxx" (the test Workbench copies it to GB:)
 HyResult:
@@ -615,6 +791,33 @@ HyResult:
 	move.l	HyIdleSum,d0
 	bsr.s	.hex8
 	ENDC
+	IFD	HY_WRSTAT		; test: wave restarts (sound.s HyWaveRst)
+	lea	HyResWr,a0
+	lea	HyWrN,a1
+	moveq	#4-1,d3
+.wr:	move.l	(a1)+,d0
+	bsr.s	.hex8
+	addq.l	#1,a0
+	dbra	d3,.wr
+	ENDC
+	IFD	HY_CD32STAT		; test: the CD32 kit read (cd32read.s)
+	lea	HyResCd,a0
+	lea	HyCD32St,a1
+	moveq	#4-1,d3
+.cd:	move.l	(a1)+,d0
+	bsr.s	.hex8
+	addq.l	#1,a0
+	dbra	d3,.cd
+	ENDC
+	IFD	GBC_APROF		; the test rows' run totals (whole windows), TOD lines
+	lea	gbc_qtot,a1
+	lea	HyResQ,a0
+	moveq	#9-1,d3			; (gbc_qnegt follows gbc_qtot)
+.q:	move.l	(a1)+,d0
+	bsr.s	.hex8
+	addq.l	#6,a0			; past " xxxx="
+	dbra	d3,.q
+	ENDC
 	move.l	HyDosBase,a6
 	move.l	#HyResName,d1
 	move.l	#MODE_NEWFILE,d2
@@ -626,7 +829,11 @@ HyResult:
 	IFD	IDL_STAT
 	move.l	#HyResEnd-HyResText,d3
 	ELSE
+	IFD	GBC_APROF
+	move.l	#HyResEnd-HyResText,d3
+	ELSE
 	moveq	#HyResEnd-HyResText,d3
+	ENDC
 	ENDC
 	jsr	dosWrite(a6)
 	move.l	d4,d1
@@ -707,10 +914,17 @@ HyPatchWrites:
 
 	include	"glue.s"
 	IFND	NO_CD32
+	IFD	HY_CD32KIT		; the CD32 kit 2 read + "Pad = KTRL CD32+" (cd32read.s)
+	include	"cd32read.s"
+	ELSE
 	include	"cd32pad.s"
+	ENDC
 	IFND	NO_PADMAP
 	include	"padcfg.s"
 	ENDC
+	ENDC
+	IFD	HY_SAVE128		; 64/128 KB MBC5 battery saves (save128.s)
+	include	"save128.s"
 	ENDC
 	IFND	NO_LINEPAL
 	include	"linepal.s"
@@ -760,6 +974,18 @@ HyWzEnd:				; end of the engine state (menu.s keeps a copy)
 	include	"gb_extra.s"
 	include	"z80_misc.s"
 	include	"z80_full_III.s"
+	IFD	HY_GBC
+	include	"gbc.s"
+	ENDC
+	IFD	GBC_RENDER
+	include	"gbc_line.s"
+	ENDC
+	IFD	GBC_RTG
+	include	"gbc_rtg.s"
+	ENDC
+	IFD	GBC_AGA
+	include	"gbc_aga.s"
+	ENDC
 
 	SECTION	hybrid,CODE
 ; Juan's data block: offsets from Regs (A3), some negative (UltCopLin, IntGB1Ant)
@@ -810,7 +1036,11 @@ HyFLogN:	dc.l	0
 HyFLog:		ds.l	HY_FRAMELOG
 	SECTION	hybriddata,DATA
 	ENDC
+	IFD	HY_MENUPIC		; test (menu build): GB:, the menu keeps running
+HyResName:	dc.b	"GB:AmiGB.result",0
+	ELSE
 HyResName:	dc.b	"RAM:AmiGB.result",0
+	ENDC
 HyResText:	dc.b	"frames="
 HyResNum:	dc.b	"00000000 skipped="
 HyResSkip:	dc.b	"00000000 vbls="
@@ -823,6 +1053,19 @@ HyResBSum:	dc.b	"00000000"
 	IFD	HY_IDLE
 	dc.b	" idle="
 HyResIdle:	dc.b	"00000000"
+	ENDC
+	IFD	HY_WRSTAT		; restarts, colour clocks waited (sum, max), no IR seen
+	dc.b	" wrst="
+HyResWr:	dc.b	"00000000 00000000 00000000 00000000"
+	ENDC
+	IFD	HY_CD32STAT		; raw nine bits ORed, reads, reads with red, reads with the ID
+	dc.b	" cd32="
+HyResCd:	dc.b	"00000000 00000000 00000000 00000000"
+	ENDC
+	IFD	GBC_APROF		; (each name 4 letters: HyResult steps 6 after a number)
+	dc.b	" emu_="
+HyResQ:	dc.b	"00000000 rend=00000000 c2p_=00000000 wait=00000000 flpw=00000000"
+	dc.b	" othr=00000000 drwn=00000000 grps=00000000 negl=00000000"
 	ENDC
 	IFD	IDL_STAT
 	dc.b	" idl="
@@ -860,6 +1103,9 @@ HySnapWz:	ds.b	HyWzEnd-z80_cycles	; state as at start (menu.s)
 HySnapSnd:	ds.b	HySndEnd-HyCh1
 	ENDC
 HySnapRegs:	ds.b	$1300
+	IFD	HY_GBC
+HySnapGbc:	ds.b	(gbc_dend-gbc_dstart+3)&-4
+	ENDC
 	ELSE
 	SECTION	EmbedRom,DATA
 	cnop	0,4

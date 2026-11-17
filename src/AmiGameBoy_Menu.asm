@@ -307,10 +307,16 @@ Programa:
 
 	BSR	MiraAGA
 	TST.L	D0
+	IFD	HY_LUPA
+	JSR	LupaRun20		; hybrid: D0 = 0 -> return code 20 (hybrid/lupa.s)
+	ENDC
 	BEQ	Quitar
 
 	BSR	MC68020
 	TST.L	D0
+	IFD	HY_LUPA
+	JSR	LupaRun20		; hybrid: D0 = 0 -> return code 20 (hybrid/lupa.s)
+	ENDC
 	BEQ	Quitar
 
 ;;	BSR	CheckAGA
@@ -354,6 +360,10 @@ NoHayAsl:
 	ENDC
 	ENDC
 BucleMenu:
+	IFD	HY_LUPA
+	JSR	LupaLeave		; hybrid: ONEGAME after the game, the save prompt (hybrid/lupa.s)
+	BNE	LupaQuitNow		; then quit, no Quit requester
+	ENDC
 ; ------------------------------------------
 	LEA	MainMenuPunts,A1
 	BSR	Control
@@ -376,6 +386,9 @@ NoSaveBatt:
 	JSR	CloseQuitWindow
 	BSR	EnaMouse
 ; ------------------------------------------
+	IFD	HY_LUPA
+LupaQuitNow:
+	ENDC
 	BSR	CloseMainMenuWindow
 ; ------------------------------------------
 ; --------------------------		; Screen mode on Exit.
@@ -390,6 +403,9 @@ EsNTSC2:MOVE.W	D1,$DFF1DC
 NoChangeCon:
 ; ------------------------------------------
 Quitar:	JSR	CloseDownScreen
+	IFD	HY_LUPA
+	JSR	LupaShowErr		; hybrid: a load error (ONEGAME) on Workbench (hybrid/lupa.s)
+	ENDC
 ; ------------------------------------------=> Quit
 	MOVEQ	#0,D0	; Salir Sín Errores
 	RTS
@@ -483,6 +499,12 @@ ImprHelpJoy:
 ; ------------------------------------------
 
 ImpError:
+	IFD	HY_LUPA
+	TST.B	LupaCatch		; hybrid: ONEGAME start, the message kept for Workbench
+	BEQ.S	HyImpErr
+	JMP	LupaCaught		; (hybrid/lupa.s)
+HyImpErr:
+	ENDC
 	MOVE.B	(A0)+,D0
 	AND.W	#$0007,D0
 	MOVE.L	(DirErrorGfx.w,PC,D0.W*4),-(SP)
@@ -1166,6 +1188,9 @@ ManufFin:
 	LSR.W	#8,D0
 	MOVE.B	D0,D1
 	MOVE.L	(TipoCart.W,PC,D1.W*4),MainMenuText15+$C
+	IFD	HY_CARTINFO
+	JSR	HyCartInfo		; hybrid: from the whole header bytes (hybrid/cartinfo.s)
+	ENDC
 
 	MOVE.B	$80+$14A(A0),D0
 	AND.B	#$0F,D0
@@ -1185,6 +1210,11 @@ ManufFin:
 	MOVE.W	#(((1024*32)+$200)/4)-1,D0
 BorraSRAM:CLR.L	(A0)+
 	DBF	D0,BorraSRAM
+	IFD	HY_MENU
+	IFD	HY_SAVE128
+	JSR	HyClrX		; hybrid: the banks after the first four (save128.s)
+	ENDC
+	ENDC
 ; -=-=-=-
 	TST.B	DirPrefs+$0B(PC)
 	BEQ.S	NoLeeBatt
@@ -1502,6 +1532,11 @@ ReadBattRut:
 	MOVE.L	#ERAM3,D2
 	MOVE.L	#(8*1024),D3
 	BSR	ReadFile
+	IFD	HY_MENU
+	IFD	HY_SAVE128
+	JSR	HyBattRdX		; hybrid: 64/128 KB carts, the banks after the first four (save128.s)
+	ENDC
+	ENDC
 ReadBattCon:
 	BSR	CloseFile
 OpenBattError:
@@ -1558,6 +1593,11 @@ SaveBattRut0:
 	MOVE.L	#ERAM3,D2
 	MOVE.L	#(8*1024),D3
 	BSR	WriteFile
+	IFD	HY_MENU
+	IFD	HY_SAVE128
+	JSR	HyBattWrX		; hybrid: 64/128 KB carts, the banks after the first four (save128.s)
+	ENDC
+	ENDC
 SaveBattCon:
 	BSR	CloseFile
 	RTS
@@ -1577,6 +1617,11 @@ ClrBatBuc:
 	CLR.L	(A0)+
 	CLR.L	(A0)+
 	DBF	D0,ClrBatBuc
+	IFD	HY_MENU
+	IFD	HY_SAVE128
+	JSR	HyClrX		; hybrid: the banks after the first four (save128.s)
+	ENDC
+	ENDC
 
 	BSR	CalChecksum
 	MOVE.L	D2,CheckId		; Guarda Check-Sum.
@@ -1595,6 +1640,11 @@ CaChCaBuc:
 	MOVE.W	(A0)+,D1
 	ADD.L	D1,D2
 	DBF	D0,CaChCaBuc
+	IFD	HY_MENU
+	IFD	HY_SAVE128
+	JSR	HyChkX		; hybrid: 64/128 KB carts, the other banks too (save128.s)
+	ENDC
+	ENDC
 	RTS
 
 ; ------------------------------------------

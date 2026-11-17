@@ -1470,7 +1470,7 @@ READ_D2_TO_D6:	MACRO
 		move.b	(a3,d2.l),d6
 		bra.s	read_to_exit_\@
 		cnop	0,4
-read_to_\@:	move.b	(a2,d2.l),d6
+read_to_\@:	GBC_RD	d2,d6
 read_to_exit_\@:	
 		ENDM
 
@@ -1482,4 +1482,35 @@ READW_D5_TO_D7:	MACRO
 		cnop	0,4
 readw_to_\@:	move.w	(a2,d5.l),d7
 readw_to_exit_\@:	
+		ENDM
+
+; AmiGameBoy GBC: a CPU byte read from RAM ($8000-$FFFF). In HY_GBC builds VRAM ($8000-$9FFF)
+; goes through gbc_vrd (gbc.s: the selected bank, $FF while the LCD draws a line); without
+; HY_GBC these are Wzonka's own instructions.
+GBC_RD:		MACRO				; \1 = address register (upper word 0), \2 = destination
+		IFD	HY_GBC
+		cmp.w	#$a000,\1
+		bcc.s	gbc_rdram\@
+		jsr	gbc_vrd_\1
+		move.b	d6,\2
+		bra.s	gbc_rdx\@
+gbc_rdram\@:
+		ENDC
+		move.b	(a2,\1.l),\2
+gbc_rdx\@:
+		ENDM
+
+GBC_BTST:	MACRO				; BIT \1,(HL) from RAM: Z into d4 as Wzonka
+		IFD	HY_GBC
+		cmp.w	#$a000,d2
+		bcc.s	gbc_btram\@
+		jsr	gbc_vrd_d2
+		move.w	d4,CCR
+		btst	#\1,d6
+		bra.s	gbc_btx\@
+gbc_btram\@:
+		ENDC
+		move.w	d4,CCR
+		btst.b	#\1,(a2,d2.l)
+gbc_btx\@:
 		ENDM

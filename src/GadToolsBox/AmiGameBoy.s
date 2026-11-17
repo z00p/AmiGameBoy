@@ -1958,7 +1958,11 @@ MainMenuText5:
     DC.B    4,0
     DC.B    $00
     DC.B    0
+	IFD	HY_REL20		; 2.0 release text (1.0.1 fixes, public d253f9b)
+    DC.W    460,22
+	ELSE
     DC.W    448,22
+	ENDC
     DC.L    topaz8
     DC.L    MainMenuIText5
     DC.L    MainMenuText6
@@ -2210,7 +2214,11 @@ HelpPageText12:
     DC.B    6,0
     DC.B    $00
     DC.B    0
+	IFD	HY_REL20		; 2.0 release text (1.0.1 fixes, public d253f9b)
+    DC.W    260,69
+	ELSE
     DC.W    300,69
+	ENDC
     DC.L    topaz8
     DC.L    HelpPageIText12
     DC.L    HelpPageText13
@@ -2219,7 +2227,11 @@ HelpPageText13:
     DC.B    6,0
     DC.B    $00
     DC.B    0
+	IFD	HY_REL20		; 2.0 release text (1.0.1 fixes, public d253f9b)
+    DC.W    252,79
+	ELSE
     DC.W    292,79
+	ENDC
     DC.L    topaz8
     DC.L    HelpPageIText13
     DC.L    HelpPageText14
@@ -3554,7 +3566,11 @@ MainMenuIText4:
     DC.B    ' Cartridge ',0
 
 MainMenuIText5:
+	IFD	HY_REL20		; 2.0 release text (1.0.1 fixes, public d253f9b)
+    DC.B    '(GPL-2)',0
+	ELSE
     DC.B    '(freeware)',0
+	ENDC
 
 MainMenuIText6:
     DC.B    ' Control ',0
@@ -3609,7 +3625,11 @@ HelpPageIText0:
     DC.B    ' Keyboard ',0
 
 HelpPageIText1:
+	IFD	HY_REL20		; 2.0 release text (1.0.1 fixes, public d253f9b)
+    DC.B    'Esc = Back to menu',0
+	ELSE
     DC.B    'ESC = Exit to menu',0
+	ENDC
 
 HelpPageIText2:
     DC.B    'Del = Select',0
@@ -3627,25 +3647,53 @@ HelpPageIText6:
     DC.B    ' CD³² Joypad ',0
 
 HelpPageIText7:
+	IFD	HY_REL20		; 2.0 release text (1.0.1 fixes, public d253f9b)
+    DC.B    'Play = Start',0
+	ELSE
     DC.B    'Play = Exit to menu',0
+	ENDC
 
 HelpPageIText8:
+	IFD	HY_REL20		; 2.0 release text (1.0.1 fixes, public d253f9b)
+    DC.B    'Green = B',0
+	ELSE
     DC.B    'Green = Select',0
+	ENDC
 
 HelpPageIText9:
+	IFD	HY_REL20		; 2.0 release text (1.0.1 fixes, public d253f9b)
+    DC.B    'Yellow = Select',0
+	ELSE
     DC.B    'Yellow = Start',0
+	ENDC
 
 HelpPageIText10:
+	IFD	HY_REL20		; 2.0 release text (1.0.1 fixes, public d253f9b)
+    DC.B    'Red = A Button',0
+	ELSE
     DC.B    'Red = B Button',0
+	ENDC
 
 HelpPageIText11:
+	IFD	HY_REL20		; 2.0 release text (1.0.1 fixes, public d253f9b)
+    DC.B    'Blue = B Button',0
+	ELSE
     DC.B    'Blue = A Button',0
+	ENDC
 
 HelpPageIText12:
+	IFD	HY_REL20		; 2.0 release text (1.0.1 fixes, public d253f9b)
+    DC.B    'Reward+Play = Menu',0
+	ELSE
     DC.B    'Reward = B Button',0
+	ENDC
 
 HelpPageIText13:
+	IFD	HY_REL20		; 2.0 release text (1.0.1 fixes, public d253f9b)
+    DC.B    'Forward+Play = Menu',0
+	ELSE
     DC.B    'Forward = A Button',0
+	ENDC
 
 HelpPageIText14:
     DC.B    'Space Bar = B Button',0

@@ -429,7 +429,109 @@ HySndPerWave:
 	move.l	d2,(a1)			; taken at the end of the loop playing now
 	move.w	d1,4(a1)
 	move.w	d0,6(a1)
+	IFD	HY_WAVERST
+	cmp.w	HyWavePer,d0		; (AUD2PER can't be read back)
+	beq.w	HySndInRange
+	move.w	HyWavePer,HyWavePrv
+	move.w	d0,HyWavePer
+	ENDC
 	bra.w	HySndInRange
+
+	IFD	HY_WAVERST
+; ---- HY_WAVERST: a trigger starts the wave again from its first sample. The DMG resets the
+; wave position at a trigger; the first sample read is sample 1, after one sample period of
+; the old sample (Pan Docs; Mesen 2: position 0, the old output for 2 x (2048-x) + 4
+; T-cycles, then samples 1, 2, ..). Paula: voice 2 from the start of its loop, sample 0 for
+; one period, then 1, 2, .. on the same beat (sample 0 stands in for the old sample).
+; Paula reloads AUD2LC only from its idle state: DMA off, and the voice goes idle at the end
+; of the word it plays (011 -> 000, which needs AUD2 IP set). To find that end without
+; knowing where it is: AUD2 IP cleared, so the word's end goes to manual mode instead
+; (011 -> 010) and sets AUD2 IR; AUD2PER is 124 by then, so the voice is idle 2 x 124
+; colour clocks later (010 -> 011 -> 000, IP now set). Busy-wait: up to one sample period
+; (124-3464 colour clocks, the latter at x = 0) + 260. No IR comes when the voice goes idle
+; at once (DMA off while it still starts from the last restart, states 001/101, or an IP
+; set between the two writes): then the wait ends after the longer of the last two periods
+; + 2 lines. INTENA has only VERTB on, so IP/IR raise no interrupt. d0-d3 used.
+HyWaveRst:
+	IFD	HY_WRSTAT		; test: d3 = start (hy_nr34 keeps d3)
+	moveq	#0,d0
+	move.w	HyWavePer,d0
+	cmp.w	HyWavePrv,d0
+	bcc.w	.l0
+	move.w	HyWavePrv,d0
+.l0:	add.w	#2*227+60,d0
+	move.l	d0,HyWrLim
+	bsr.w	.pos
+	move.l	d0,d3
+	ENDC
+	move.w	#124,$dff0c6		; AUD2PER for the voice's next loads
+	move.w	#$0004,$dff096		; voice 2 DMA off
+	move.w	#$0200,$dff09c		; AUD2 IP clear
+	IFND	HY_WRSTAT
+	moveq	#0,d3			; the limit: the longer period + 2 lines
+	move.w	HyWavePer,d3
+	cmp.w	HyWavePrv,d3
+	bcc.w	.lim
+	move.w	HyWavePrv,d3
+.lim:	add.w	#2*227+60,d3
+	ENDC
+	bsr.w	.pos
+	move.l	d0,d1
+.ir:	btst	#9-8,$dff01e		; INTREQR: AUD2 IR, the word has ended
+	bne.w	.end
+	bsr.w	.pos
+	sub.l	d1,d0
+	bpl.w	.p1
+	add.l	#313*227,d0
+.p1:
+	IFD	HY_WRSTAT		; (d3 holds the start: the limit in HyWrLim)
+	cmp.l	HyWrLim,d0
+	ELSE
+	cmp.l	d3,d0
+	ENDC
+	bcs.w	.ir
+	IFD	HY_WRSTAT
+	addq.l	#1,HyWrTmo
+	ENDC
+.end:	bsr.w	.pos
+	move.l	d0,d1
+.idle:	bsr.w	.pos			; 2 x 124 colour clocks: idle
+	sub.l	d1,d0
+	bpl.w	.p2
+	add.l	#313*227,d0
+.p2:	cmp.l	#260,d0
+	bcs.w	.idle
+	move.w	HyWavePer,$dff0c6
+	move.w	#$8004,$dff096		; DMA on: AUD2LC, AUD2LEN from the start
+	IFD	HY_WRSTAT
+	bsr.w	.pos
+	sub.l	d3,d0
+	bpl.w	.p3
+	add.l	#313*227,d0
+.p3:	addq.l	#1,HyWrN
+	add.l	d0,HyWrSum
+	cmp.l	HyWrMax,d0
+	bls.w	.p4
+	move.l	d0,HyWrMax
+.p4:
+	ENDC
+	rts
+; beam position in colour clocks (line x 227 + h) -> d0; d2 used. The long read is two
+; word reads: read again if the line changed between them (V8 and V7-0 of different lines)
+.pos:	move.l	$dff004,d0
+	move.l	$dff004,d2
+	eor.l	d0,d2
+	and.l	#$1ff00,d2
+	beq.w	.pos1
+	move.l	$dff004,d0
+.pos1:	moveq	#0,d2
+	move.b	d0,d2
+	lsr.l	#8,d0
+	and.l	#$1ff,d0
+	mulu.w	#227,d0
+	add.l	d2,d0
+	rts
+	ENDC
 
 ; ---- noise (ch4) from NR43: clock 524288 / r / 2^(s+1) (r = 0: 0.5), sample width
 	IFD	NO_NOISERATE
@@ -1018,7 +1120,14 @@ hy_nr34:
 	beq.w	.w
 	bsr.w	HySndWave
 	lea	HyCh3,a0		; (HySndWave uses a0)
-.w:	move.w	#256,d1
+.w:
+	IFD	HY_WAVERST
+	tst.b	C_DAC(a0)		; the channel goes on: its wave from the start
+	beq.w	.r
+	bsr.w	HyWaveRst
+.r:
+	ENDC
+	move.w	#256,d1
 	bsr.w	HySndTrig
 	bra.w	hy_x4
 ; store (bit 6 reads back), frequency bits 8-10, length enable; d6 kept
@@ -1218,6 +1327,18 @@ HyNoiseW:	dc.b	0		; noise sample on voice 3: 0 = 15-bit, $FF = 7-bit
 HySndPend:	dc.b	0		; VBLs to go before voice 3 DMA goes back on
 	even
 HyNoiseP:	dc.w	400		; voice 3 period
+	IFD	HY_WAVERST
+HyWavePer:	dc.w	400		; voice 2 period (HyWaveRst)
+HyWavePrv:	dc.w	400		; the one before
+	ENDC
+	IFD	HY_WRSTAT		; test: restarts, colour clocks (sum, max), no IR seen
+	cnop	0,4
+HyWrN:		dc.l	0
+HyWrSum:	dc.l	0
+HyWrMax:	dc.l	0
+HyWrTmo:	dc.l	0
+HyWrLim:	dc.l	0
+	ENDC
 	IFND	HY_SQ8
 HySqTier:	dc.b	0,0		; ch1, ch2: loop on the voice, 0 = 8 samples a cycle, 1 = 4, 2 = 2,
 					; 3 = constant

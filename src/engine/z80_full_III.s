@@ -3,6 +3,16 @@
 ; Ventzislav Tzvetkov 2003-2004. Changes for AmiGameBoy (C) 2026, same licence;
 ; see git history. Original file: z80_full_III.s
 
+; AmiGameBoy GBC_ADCZ: ADC/SBC with the carry in (ADDX/SUBX) start from X = 1 and Z = 1. ADDX/SUBX
+; only clear Z (a zero result leaves it as it was), so Wzonka's X-only start gave Z = 0 for a zero
+; result: "ADC A,x" giving 0 left Z clear. Infinity's sprite list (bank $0E $6893-$689A: an X test
+; "add a,(hl) / ... / adc a,(hl) / jr nz") lost every object whose low byte add carried.
+	IFD	GBC_ADCZ
+ADCX_CCR	=%10100
+	ELSE
+ADCX_CCR	=%10000
+	ENDC
+
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
 ;		z80 processor emulator, gameboy edition
 ;		INPUT:
@@ -326,7 +336,12 @@ daa_exit_007:	fetch_next_i
 ;		trash the oam ram according to the hardware bug
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
 
-trash_oam_ram:	move.l	a2,a6
+trash_oam_ram:
+		IFD	HY_GBC				;AmiGameBoy GBC: the CGB has no OAM bug.
+		tst.b	gbc_mode
+		bne.s	trash_oam_ram_x
+		ENDC
+		move.l	a2,a6
 		add.l	#$FE08,a6
 		moveq.l	#38/2-1,d7
 
@@ -334,6 +349,7 @@ trash_oam_ram_loop:
 		clr.l	(a6)+
 		clr.l	(a6)+
 		dbra	d7,trash_oam_ram_loop
+trash_oam_ram_x:
 		rts
 
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
@@ -697,7 +713,7 @@ z80_optcode_0A:	subq.l	#2,a5					;less cycles.
 		fetch_next_i
 		cnop	0,4
 
-read_d1_to_d3ax:move.b	(a2,d1.l),d3				;ram read.
+read_d1_to_d3ax:	GBC_RD	d1,d3				;ram read.
 
 		fetch_next_i
 		cnop	0,128
@@ -877,8 +893,13 @@ z80_optc_CB0F:	subq.l	#2,a5					;less cycles.
 ;		10 - STOP (+ 00.B?)
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
 
-z80_optcode_10:	move.b	#1,z80_halt				;z80 stopped!
+z80_optcode_10:
+		IFD	HY_GBC
+		jmp	gbc_stop				;AmiGameBoy GBC: speed switch.
+		ELSE
+		move.b	#1,z80_halt				;z80 stopped!
 		rts
+		ENDC
 		cnop	0,128
 
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
@@ -1234,7 +1255,7 @@ z80_optcode_1A:	subq.l	#2,a5					;less cycles.
 		fetch_next_i
 		cnop	0,4
 
-read_d0x_to_d3a:move.b	(a2,d0.l),d3				;ram read.
+read_d0x_to_d3a:	GBC_RD	d0,d3				;ram read.
 
 		fetch_next_i
 		cnop	0,128
@@ -1844,7 +1865,7 @@ z80_optcode_2A_ok:
 		fetch_next_i
 		cnop	0,4
 
-read_d2_to_d3a1:move.b	(a2,d2.l),d3				;ram read.
+read_d2_to_d3a1:	GBC_RD	d2,d3				;ram read.
 		addq.w	#1,d2					;ldi a, (hl).
 
 		fetch_next_i
@@ -2440,7 +2461,7 @@ z80_optcode_3A_ok:
 		fetch_next_i
 		cnop	0,4
 
-read_d2_to_d3a2:move.b	(a2,d2.l),d3				;ram read.
+read_d2_to_d3a2:	GBC_RD	d2,d3				;ram read.
 		subq.w	#1,d2					;ldd a, (hl).
 
 		fetch_next_i
@@ -2784,7 +2805,7 @@ z80_optcode_46:	ror.w	#8,d1
 		fetch_next_i
 		cnop	0,4
 
-aread_d2_to_d1a:move.b	(a2,d2.l),d1				;ram read.
+aread_d2_to_d1a:	GBC_RD	d2,d1				;ram read.
 		rol.w	#8,d1
 
 		fetch_next_i
@@ -2811,8 +2832,7 @@ z80_optc_CB46:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-read_d2a_to_d7a:move.w	d4,CCR					;the status register.
-		btst.b	#0,(a2,d2.l)				;ram read.
+read_d2a_to_d7a:		GBC_BTST	0				;ram read.
 		move.w	CCR,d4					;status updated.
 
 		fetch_next_i
@@ -3013,7 +3033,7 @@ z80_optcode_4E:	subq.l	#2,a5					;less cycles.
 		fetch_next_i
 		cnop	0,4
 
-bread_d2_to_d1a:move.b	(a2,d2.l),d1				;ram read.
+bread_d2_to_d1a:	GBC_RD	d2,d1				;ram read.
 
 		fetch_next_i
 		cnop	0,128
@@ -3039,8 +3059,7 @@ z80_optc_CB4E:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-read_d2b_to_d7a:move.w	d4,CCR					;the status register.
-		btst.b	#1,(a2,d2.l)				;ram read.
+read_d2b_to_d7a:		GBC_BTST	1				;ram read.
 		move.w	CCR,d4					;status updated.
 
 		fetch_next_i
@@ -3245,7 +3264,7 @@ z80_optcode_56:	ror.w	#8,d0					;d down.
 		fetch_next_i
 		cnop	0,4
 
-cread_d2_to_d0a:move.b	(a2,d2.l),d0				;ram read.
+cread_d2_to_d0a:	GBC_RD	d2,d0				;ram read.
 		rol.w	#8,d0					;d back to up.
 
 		fetch_next_i
@@ -3272,8 +3291,7 @@ z80_optc_CB56:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-read_d2c_to_d7a:move.w	d4,CCR					;the status register.
-		btst.b	#2,(a2,d2.l)				;ram read.
+read_d2c_to_d7a:		GBC_BTST	2				;ram read.
 		move.w	CCR,d4					;status updated.
 
 		fetch_next_i
@@ -3474,7 +3492,7 @@ z80_optcode_5E:	subq.l	#2,a5					;less cycles.
 		fetch_next_i
 		cnop	0,4
 
-dread_d2_to_d0a:move.b	(a2,d2.l),d0				;ram read.
+dread_d2_to_d0a:	GBC_RD	d2,d0				;ram read.
 
 		fetch_next_i
 		cnop	0,128
@@ -3500,8 +3518,7 @@ z80_optc_CB5E:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-read_d2d_to_d7a:move.w	d4,CCR					;the status register.
-		btst.b	#3,(a2,d2.l)				;ram read.
+read_d2d_to_d7a:		GBC_BTST	3				;ram read.
 		move.w	CCR,d4					;status updated.
 
 		fetch_next_i
@@ -3707,7 +3724,7 @@ z80_optcode_66:	move.w	d2,d7					;d7 = h.B, l.B.
 		fetch_next_i
 		cnop	0,4
 
-read_d7_to_d2a:	move.b	(a2,d7.l),d2				;ram read.
+read_d7_to_d2a:	GBC_RD	d7,d2				;ram read.
 		rol.w	#8,d2					;h back to up.
 
 		fetch_next_i
@@ -3734,8 +3751,7 @@ z80_optc_CB66:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-read_d2e_to_d7a:move.w	d4,CCR					;the status register.
-		btst.b	#4,(a2,d2.l)				;ram read.
+read_d2e_to_d7a:		GBC_BTST	4				;ram read.
 		move.w	CCR,d4					;status updated.
 
 		fetch_next_i
@@ -3936,7 +3952,7 @@ z80_optcode_6E:	subq.l	#2,a5					;less cycles.
 		fetch_next_i
 		cnop	0,4
 
-read_d2_to_d2a:	move.b	(a2,d2.l),d2				;ram read.
+read_d2_to_d2a:	GBC_RD	d2,d2				;ram read.
 
 		fetch_next_i
 		cnop	0,128
@@ -3962,8 +3978,7 @@ z80_optc_CB6E:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-read_d2f_to_d7a:move.w	d4,CCR					;the status register.
-		btst.b	#5,(a2,d2.l)				;ram read.
+read_d2f_to_d7a:		GBC_BTST	5				;ram read.
 		move.w	CCR,d4					;status updated.
 
 		fetch_next_i
@@ -4240,8 +4255,7 @@ z80_optc_CB76:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-read_d2g_to_d7a:move.w	d4,CCR					;the status register.
-		btst.b	#6,(a2,d2.l)				;ram read.
+read_d2g_to_d7a:		GBC_BTST	6				;ram read.
 		move.w	CCR,d4					;status updated.
 
 		fetch_next_i
@@ -4445,7 +4459,7 @@ z80_optcode_7E:	subq.l	#2,a5					;less cycles.
 		fetch_next_i
 		cnop	0,4
 
-read_d2_to_d3a3:move.b	(a2,d2.l),d3				;ram read.
+read_d2_to_d3a3:	GBC_RD	d2,d3				;ram read.
 
 		fetch_next_i
 		cnop	0,128
@@ -4471,8 +4485,7 @@ z80_optc_CB7E:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-read_d2h_to_d7a:move.w	d4,CCR					;the status register.
-		btst.b	#7,(a2,d2.l)				;ram read.
+read_d2h_to_d7a:		GBC_BTST	7				;ram read.
 		move.w	CCR,d4					;status updated.
 
 		fetch_next_i
@@ -4737,7 +4750,7 @@ z80_optcode_88:	btst	#0,d4					;carry?
 		subq.l	#1,a5					;less cycles.
 		move.b	d1,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		addx.b	d1,d3					;a = a + b + c.
 		move.w	CCR,d4					;status updated.
 
@@ -4768,7 +4781,7 @@ z80_optcode_89:	btst	#0,d4					;carry?
 		subq.l	#1,a5					;less cycles.
 		move.b	d1,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		addx.b	d1,d3					;a = a + c + c.
 		move.w	CCR,d4					;status updated.
 
@@ -4799,7 +4812,7 @@ z80_optcode_8A:	btst	#0,d4					;carry?
 		subq.l	#1,a5					;less cycles.
 		move.b	d0,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		addx.b	d0,d3					;a = a + d + c.
 		move.w	CCR,d4					;status updated.
 
@@ -4830,7 +4843,7 @@ z80_optcode_8B:	btst	#0,d4					;carry?
 		subq.l	#1,a5					;less cycles.
 		move.b	d0,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		addx.b	d0,d3					;a = a + e + c.
 		move.w	CCR,d4					;status updated.
 
@@ -4861,7 +4874,7 @@ z80_optcode_8C:	btst	#0,d4					;carry?
 		subq.l	#1,a5					;less cycles.
 		move.b	d2,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		addx.b	d2,d3					;a = a + h + c.
 		move.w	CCR,d4					;status updated.
 
@@ -4892,7 +4905,7 @@ z80_optcode_8D:	btst	#0,d4					;carry?
 		subq.l	#1,a5					;less cycles.
 		move.b	d2,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		addx.b	d2,d3					;a = a + l + c.
 		move.w	CCR,d4					;status updated.
 
@@ -4924,7 +4937,7 @@ z80_optcode_8E:	btst	#0,d4					;carry?
 		subq.l	#2,a5					;less cycles.
 		move.b	d6,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		addx.b	d6,d3					;a = a + d + c.
 		move.w	CCR,d4					;status updated.
 
@@ -4960,7 +4973,7 @@ z80_optcode_8F:	btst	#0,d4					;carry?
 		subq.l	#1,a5					;less cycles.
 		move.b	d3,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		addx.b	d3,d3					;a = a + d + c.
 		move.w	CCR,d4					;status updated.
 
@@ -5214,7 +5227,7 @@ z80_optcode_98:	btst	#0,d4					;c = 0?
 		subq.l	#1,a5					;less cycles.
 		move.b	d1,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		subx.b	d1,d3					;a = a - b - c.
 		move.w	CCR,d4					;status updated.
 
@@ -5245,7 +5258,7 @@ z80_optcode_99:	btst	#0,d4					;c = 0?
 		subq.l	#1,a5					;less cycles.
 		move.b	d1,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		subx.b	d1,d3					;a = a - c - c.
 		move.w	CCR,d4					;status updated.
 
@@ -5276,7 +5289,7 @@ z80_optcode_9A:	btst	#0,d4					;c = 0?
 		subq.l	#1,a5					;less cycles.
 		move.b	d0,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		subx.b	d0,d3					;a = a - d - c.
 		move.w	CCR,d4					;status updated.
 
@@ -5307,7 +5320,7 @@ z80_optcode_9B:	btst	#0,d4					;c = 0?
 		subq.l	#1,a5					;less cycles.
 		move.b	d0,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		subx.b	d0,d3					;a = a - e - c.
 		move.w	CCR,d4					;status updated.
 
@@ -5338,7 +5351,7 @@ z80_optcode_9C:	btst	#0,d4					;c = 0?
 		subq.l	#1,a5					;less cycles.
 		move.b	d2,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		subx.b	d2,d3					;a = a - h - c.
 		move.w	CCR,d4					;status updated.
 
@@ -5369,7 +5382,7 @@ z80_optcode_9D:	btst	#0,d4					;c = 0?
 		subq.l	#1,a5					;less cycles.
 		move.b	d2,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		subx.b	d2,d3					;a = a - l - c.
 		move.w	CCR,d4					;status updated.
 
@@ -5401,7 +5414,7 @@ z80_optcode_9E:	btst	#0,d4					;c = 0?
 		subq.l	#2,a5					;less cycles.
 		move.b	d6,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		subx.b	d6,d3					;a = a - (hl) - c.
 		move.w	CCR,d4					;status updated.
 
@@ -5437,7 +5450,7 @@ z80_optcode_9F:	btst	#0,d4					;c = 0?
 		subq.l	#1,a5					;less cycles.
 		move.b	d3,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		subx.b	d3,d3					;a = a - a - c.
 		move.w	CCR,d4					;status updated.
 
@@ -6529,7 +6542,7 @@ z80_optc_CBC6:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-pead_d2_to_d6a:	move.b	(a2,d2.l),d6				;ram.
+pead_d2_to_d6a:	GBC_RD	d2,d6				;ram.
 		or.b	#%1,d6
 		jsr	([a6,d2.l*4])				;memory write.
 
@@ -6790,7 +6803,7 @@ z80_optcode_CE:	btst	#0,d4					;c = 0?
 		and.w	#$ff,d3					;n = 0!
 		move.b	d6,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		addx.b	d6,d3					;a = a + c + c.
 		move.w	CCR,d4					;status updated.
 
@@ -6816,7 +6829,7 @@ z80_optc_CBCE:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-lead_d2_to_d6a:	move.b	(a2,d2.l),d6				;ram.
+lead_d2_to_d6a:	GBC_RD	d2,d6				;ram.
 		or.b	#%10,d6
 		jsr	([a6,d2.l*4])				;memory write.
 
@@ -7090,7 +7103,7 @@ z80_optc_CBD6:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-aead_d2_to_d6a:	move.b	(a2,d2.l),d6				;ram.
+aead_d2_to_d6a:	GBC_RD	d2,d6				;ram.
 		or.b	#%100,d6
 		jsr	([a6,d2.l*4])				;memory write.
 
@@ -7329,7 +7342,7 @@ z80_optcode_DE:	btst	#0,d4					;c = 0?
 		or.w	#$100,d3				;n = 1!
 		move.b	d6,h_other_II
 
-		move.w	#%10000,CCR				;x = 1!
+		move.w	#ADCX_CCR,CCR				;x = 1! (GBC_ADCZ: z = 1 too)
 		subx.b	d6,d3					;a = a - d - c.
 		move.w	CCR,d4					;status updated.
 
@@ -7355,7 +7368,7 @@ z80_optc_CBDE:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-qead_d2_to_d6a:	move.b	(a2,d2.l),d6				;ram read.
+qead_d2_to_d6a:	GBC_RD	d2,d6				;ram read.
 		or.b	#%1000,d6
 		jsr	([a6,d2.l*4])				;memory write.
 
@@ -7588,7 +7601,7 @@ z80_optc_CBE6:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-wead_d2_to_d6a:	move.b	(a2,d2.l),d6				;ram read.
+wead_d2_to_d6a:	GBC_RD	d2,d6				;ram read.
 		or.b	#%10000,d6
 		jsr	([a6,d2.l*4])				;memory write.
 
@@ -7781,7 +7794,7 @@ z80_optc_CBEE:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-fead_d2_to_d6a:	move.b	(a2,d2.l),d6				;ram read.
+fead_d2_to_d6a:	GBC_RD	d2,d6				;ram read.
 		or.b	#%100000,d6
 		jsr	([a6,d2.l*4])				;memory write.
 
@@ -8011,7 +8024,7 @@ z80_optc_CBF6:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-tead_d2_to_d6a:	move.b	(a2,d2.l),d6				;ram read.
+tead_d2_to_d6a:	GBC_RD	d2,d6				;ram read.
 		or.b	#%1000000,d6
 		jsr	([a6,d2.l*4])				;memory write.
 
@@ -8101,7 +8114,7 @@ z80_optcode_FA:	move.w	(a0)+,d7
 		fetch_next_i
 		cnop	0,4
 
-read_d7_to_d3a:	move.b	(a2,d7.l),d3				;ram read.
+read_d7_to_d3a:	GBC_RD	d7,d3				;ram read.
 
 		fetch_next_i
 		cnop	0,128
@@ -8208,7 +8221,7 @@ z80_optc_CBFE:	subq.l	#4,a5
 		fetch_next_i
 		cnop	0,4
 
-uead_d2_to_d6a:	move.b	(a2,d2.l),d6				;ram read.
+uead_d2_to_d6a:	GBC_RD	d2,d6				;ram read.
 		or.b	#%10000000,d6
 		jsr	([a6,d2.l*4])				;memory write.
 
