@@ -719,13 +719,20 @@ HyAb1:		dc.b	"(14 November 2026)",0
 	ENDC
 HyAb2:		dc.b	"Menu and display:",0
 HyAb4:		dc.b	"Game Boy engine (Wzonka-Lad):",0
+	IFD	HY_CREDVH		; Wzonka-Lad is Ville Helin's (GitHub issue #7)
+HyAb5:		dc.b	"Ville Helin",0
+	ELSE
 HyAb5:		dc.b	"Ville Helin, Ventzislav Tzvetkov",0
+	ENDC
 HyAb6:		dc.b	"Icons and Graphics: Multivac",0
 HyAb7:		dc.b	"Community version: z00p",0
 HyAb8:		dc.b	"GNU GPL v2, no warranty",0
 	IFD	HY_REL21
 HyWTitle:	dc.b	"AmiGameBoy 2.1",0
-HySTitle:	dc.b	"AmiGameBoy 2.1 community version"
+HySTitle:	dc.b	"AmiGameBoy 2.1"
+	IFND	HY_CREDZ		; (the three authors need the room)
+		dc.b	" community version"
+	ENDC
 	ELSE
 	IFD	HY_REL20		; the 2.0 release
 HyWTitle:	dc.b	"AmiGameBoy 2.0",0
@@ -735,14 +742,14 @@ HyWTitle:	dc.b	"AmiGameBoy 1.0",0
 HySTitle:	dc.b	"AmiGameBoy 1.0 community version"
 	ENDC
 	ENDC
-	IFD	HY_CREDZ		; z00p credited too (the full stop goes to make room)
+	IFD	HY_CREDZ		; Juan, Ville Helin and z00p credited alike
 		dc.b	" ",$a9," 1997-2026 "
 	ELSE
 		dc.b	". ",$a9," 1997-2026 "
 	ENDC
 		dc.b	"Juan Antonio G",$f3,"mez G",$e1,"lvez"
 	IFD	HY_CREDZ
-		dc.b	", z00p"
+		dc.b	", Ville Helin, z00p"
 	ENDC
 		dc.b	0
 	even

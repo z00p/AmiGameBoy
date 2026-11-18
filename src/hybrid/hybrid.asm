@@ -1,6 +1,6 @@
 ; AmiGameBoy hybrid (stage 1): Wzonka-Lad's engine driving Juan's AGA renderer.
 ; Copyright (C) 2026 AmiGameBoy contributors. GPL-2 (see src/engine/COPYING). The engine
-; files come from Wzonka-Lad 1.03 by Ville Helin and Ventzislav Tzvetkov; the renderer
+; files come from Wzonka-Lad 1.03 by Ville Helin (later fixes: Ventzislav Tzvetkov); the renderer
 ; (juan_video.s) from AmiGameBoy 1.0 by Juan Antonio Gomez Galvez.
 ;
 ; Test build with the cartridge inside, no menu yet (docs/design-hybrid.md 3.3, 11):

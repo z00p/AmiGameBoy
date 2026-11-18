@@ -35,7 +35,7 @@ if [ "$1" = hybrid ]; then  # stage 1 hybrid, cartridge inside: sh build.sh hybr
 fi
 if [ "$1" = rel ]; then  # the 2.0 release programs: sh build.sh rel [dir] -> dir/AGA, dir/AGA 030, dir/RTG
   d=${2:-build/rel}; mkdir -p "$d"
-  com="-DHY_REL20 -DHY_REL21 -DHY_ASLWIDE -DGBC_ADCZ -DHY_LUPA -DHY_CD32KIT -DHY_SAVE128 -DHY_CD32LATCH=200 -DHY_IDLEC -DHY_JRPOLL -DHY_VOLPCT=50 -DHY_CREDZ $defs"
+  com="-DHY_REL20 -DHY_REL21 -DHY_ASLWIDE -DGBC_ADCZ -DHY_LUPA -DHY_CD32KIT -DHY_SAVE128 -DHY_CD32LATCH=200 -DHY_IDLEC -DHY_JRPOLL -DHY_VOLPCT=50 -DHY_CREDZ -DHY_CREDVH $defs"
   VASMDEFS="$com -DHY_GBC -DGBC_RENDER -DGBC_AGA -DHY_WAVERST -DGBC_STATWR -DGBC_APEN0=0 -DHY_DIWFRAC=2 -DGBC_CCOPT -DGBC_CCDEF -DGBC_CCMENU" sh build.sh hymenu "$d/AGA" || exit 1
   VASMDEFS="$com -DHY_DIWFRAC=2" sh build.sh hymenu "$d/AGA 030" || exit 1
   VASMDEFS="$com -DHY_GBC -DGBC_RENDER -DGBC_RTG -DGBC_RTGMENU -DGBC_RPTR -DGBC_BLEND -DGBC_RBEZ -DGBC_RSCAN     -DGBC_RBEZON -DHY_WAVERST -DGBC_STATWR -DGBC_RMENU -DGBC_CCOPT -DGBC_CCDEF -DGBC_CCMENU" sh build.sh hymenu "$d/RTG" || exit 1

@@ -1971,7 +1971,7 @@ MainMenuText5:
     DC.B    $00
     DC.B    0
 	IFD	HY_REL20		; 2.0 release text (1.0.1 fixes, public d253f9b)
-	IFD	HY_CREDZ		; (GPL-2) beside the name, a line for z00p
+	IFD	HY_CREDZ		; (GPL-2) beside the name, a line for Ville Helin and z00p
     DC.W    540,11
 	ELSE
     DC.W    460,22
@@ -1989,27 +1989,16 @@ MainMenuText5:
 
 	IFD	HY_CREDZ
 HyCredText0:
-    DC.B    7,0
-    DC.B    $00
-    DC.B    0
-    DC.W    396,45
-    DC.L    topaz8
-    DC.L    HyCredIText0
-    DC.L    HyCredText1
-
-HyCredText1:
     DC.B    6,0
     DC.B    $00
     DC.B    0
-    DC.W    548,45
+    DC.W    408,45
     DC.L    topaz8
-    DC.L    HyCredIText1
+    DC.L    HyCredIText0
     DC.L    MainMenuText6
 
 HyCredIText0:
-    DC.B    'Community version:',0
-HyCredIText1:
-    DC.B    'z00p',0
+    DC.B    'Ville Helin and z00p',0
     CNOP    0,2
 	ENDC
 

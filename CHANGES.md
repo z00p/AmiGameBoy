@@ -3,9 +3,10 @@
 ## 2.1
 
 AmiGameBoy 2.1, community version: a Game Boy and Game Boy Color emulator for AGA
-Amigas, on the AGA screen or a graphics board. Juan Antonio Gómez Gálvez's
-AmiGameBoy (menu and display) with the Game Boy engine of Wzonka-Lad by Ville
-Helin and Ventzislav Tzvetkov. Also on Aminet: misc/emu/AmiGameBoyCE.lha.
+Amigas, on the AGA screen or a graphics board. By Juan Antonio Gómez Gálvez
+(AmiGameBoy: menu and display), Ville Helin (Wzonka-Lad: the Game Boy engine)
+and z00p (community version: sound, Game Boy Color). Also on Aminet:
+misc/emu/AmiGameBoyCE.lha.
 
 **Three programs** (as in 2.0)
 - **AGA**: Game Boy and Game Boy Color on the AGA screen, for fast machines
@@ -26,7 +27,9 @@ Helin and Ventzislav Tzvetkov. Also on Aminet: misc/emu/AmiGameBoyCE.lha.
   the emulator sees it (keyboard, joystick or CD32 pad).
 - **Fixed**: the light line at the left edge of the AGA picture (mono and
   colour); Dangan GB2's first stage.
-- **Credits**: z00p in the screen title and the main window.
+- **Credits**: Juan Antonio Gómez Gálvez, Ville Helin and z00p alike in the
+  screen title and the main window; Wzonka-Lad credited to its author, Ville
+  Helin.
 
 **Upgrading from 2.0**: unpack over it. An AmiGameBoy.config from 2.0 has no
 Colours line, so colour games start in LCD colours; untick LCD Colours in the
@@ -53,14 +56,15 @@ settings and the saves. No games are included: use cartridge images you may
 legally have.
 
 **Credits**: Juan Antonio Gómez Gálvez (AmiGameBoy: menu and display), Ville
-Helin and Ventzislav Tzvetkov (Wzonka-Lad: the Game Boy engine), Multivac (icons
-and graphics in Juan's original), z00p (community version, sound, Game Boy
-Color), Afrotechmods / FAmiga (CD32 pad read).
+Helin (Wzonka-Lad: the Game Boy engine) and z00p (community version, sound,
+Game Boy Color); Multivac (icons and graphics in Juan's original), Ventzislav
+Tzvetkov (later small fixes to Wzonka-Lad), Afrotechmods / FAmiga (CD32 pad
+read).
 
 **Problems**: please open an issue with the game, the program (AGA, AGA 030 or
 RTG), your machine and what you saw.
 
-SHA-256 of AmiGameBoy-2.1.lha: 5c59881468551bf7aa821c32758f7d3a5a515360959da63ea3bb16d6f6428d2d
+SHA-256 of AmiGameBoy-2.1.lha: 67996252a695b615ad3b380291750dd212d3efaf745cb6686c0d340876a7d6ae
 
 ## 2.0
 

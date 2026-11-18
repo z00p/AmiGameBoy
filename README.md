@@ -6,8 +6,9 @@ AmiGameBoy is a Game Boy and Game Boy Color emulator for AGA Amigas, in
 68020+ assembly. It plays .gb and .gbc cartridges with sound, battery
 saves and a CD32 pad, on the AGA screen or on a graphics board (RTG).
 
-It joins Juan Antonio Gómez Gálvez's AmiGameBoy (menu and display) with
-the Game Boy engine of Wzonka-Lad by Ville Helin and Ventzislav Tzvetkov.
+It is by Juan Antonio Gómez Gálvez, Ville Helin and z00p: Juan's
+AmiGameBoy (menu and display), Ville's Game Boy engine Wzonka-Lad, and
+z00p's community version that joins them, with sound and Game Boy Color.
 While a game runs it takes over the machine.
 
 ## Which icon to start
@@ -141,9 +142,10 @@ Cartridge types MBC1, MBC2, MBC3 (with the clock) and MBC5 are handled.
 
 ## Credits
 - Juan Antonio Gómez Gálvez: AmiGameBoy, the menu and the display.
-- Ville Helin and Ventzislav Tzvetkov: Wzonka-Lad, the Game Boy engine.
-- Multivac: icons and graphics in Juan's original.
+- Ville Helin: Wzonka-Lad, the Game Boy engine.
 - z00p: the community version, sound, Game Boy Color.
+- Multivac: icons and graphics in Juan's original.
+- Ventzislav Tzvetkov: later small fixes to Wzonka-Lad.
 - Afrotechmods / FAmiga: the CD32 pad read.
 
 ## Licence and source
@@ -183,7 +185,7 @@ Afrotechmods) is under the MIT licence (src/hybrid/cd32pad.LICENSE).
   src/                 Juan Antonio Gómez Gálvez's AmiGameBoy (menu,
                        GadToolsBox window code, graphics in data/)
   src/engine/          the Game Boy engine, from Wzonka-Lad 1.03 by
-                       Ville Helin and Ventzislav Tzvetkov
+                       Ville Helin
   src/hybrid/          the community version: Juan's display on the
                        engine, sound, CD32 pad, the menu's glue, and
                        Game Boy Color (gbc_*.s: the colour engine, the

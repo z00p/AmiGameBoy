@@ -1,6 +1,6 @@
 ; AmiGameBoy stage 0: engine spike (no display, no sound).
 ; Copyright (C) 2026 AmiGameBoy contributors. GPL-2 (see COPYING); the engine files it
-; includes come from Wzonka-Lad 1.03 by Ville Helin and Ventzislav Tzvetkov.
+; includes come from Wzonka-Lad 1.03 by Ville Helin (later fixes: Ventzislav Tzvetkov).
 ;
 ; Runs Wzonka-Lad's CPU, frame loop, timer and mappers on a cartridge built into the
 ; executable, for SPIKE_FRAMES frames, under a running OS (nothing is taken over). Per

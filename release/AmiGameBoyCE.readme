@@ -1,5 +1,5 @@
 Short:        Game Boy + Color emulator, AGA and RTG
-Author:       Juan Antonio Gomez Galvez, Ville Helin, Ventzislav Tzvetkov, z00p
+Author:       Juan Antonio Gomez Galvez, Ville Helin, z00p
 Uploader:     Zoopster (JCEC_1@yahoo.co.uk)
 Type:         misc/emu
 Version:      @VERSION@
@@ -11,7 +11,10 @@ Distribution: Aminet
 AmiGameBoy is a Game Boy and Game Boy Color emulator for AGA Amigas, in
 68020+ assembly. It plays .gb and .gbc cartridges with sound, battery
 saves and a CD32 pad, on the AGA screen or on a graphics board (RTG).
-While a game runs it takes over the machine.
+While a game runs it takes over the machine. It is by Juan Antonio Gomez
+Galvez, Ville Helin and z00p: Juan's AmiGameBoy (menu and display),
+Ville's Game Boy engine Wzonka-Lad, and z00p's community version that
+joins them, with sound and Game Boy Color.
 
 There are three programs:
   AGA       Game Boy and Game Boy Color on the AGA screen, for fast
@@ -26,7 +29,7 @@ Juan Antonio Gomez Galvez began AmiGameBoy in 1996-97; his last public
 version was 0.96. In 2026 he sent his sources for the community to carry
 on. This community version, released with his consent, keeps his menu
 and his AGA display and runs the games on the Game Boy engine of
-Wzonka-Lad by Ville Helin and Ventzislav Tzvetkov (GPL-2).
+Wzonka-Lad by Ville Helin (GPL-2).
 
 2.1   Colour games in LCD colours by default ("Colours = Raw" for the
       colours as the game sets them); LCD Colours in the AGA and RTG
@@ -79,9 +82,10 @@ dual-mode ones in mono.
 Credits
 -------
 - Juan Antonio Gomez Galvez: AmiGameBoy, the menu and the display.
-- Ville Helin and Ventzislav Tzvetkov: Wzonka-Lad, the Game Boy engine.
-- Multivac: icons and graphics in Juan's original.
+- Ville Helin: Wzonka-Lad, the Game Boy engine.
 - z00p: the community version, sound, Game Boy Color.
+- Multivac: icons and graphics in Juan's original.
+- Ventzislav Tzvetkov: later small fixes to Wzonka-Lad.
 - Afrotechmods / FAmiga: the CD32 pad read.
 
 Licence
