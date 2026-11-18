@@ -1,5 +1,5 @@
 ; lupa.s - the shared launch contract for game launchers such as Lupa, scripts and the Shell
-; (C:\AMD\lupa-integration\for-pancho\gamelist-spec.md section 1, framework.md 2.2-2.6),
+; (the launch contract: gamelist spec section 1, framework 2.2-2.6),
 ; behind HY_LUPA (menu builds only; without it the builds are byte-identical). Modelled on
 ; AmiPCEngine's Lupa.asm.
 ;

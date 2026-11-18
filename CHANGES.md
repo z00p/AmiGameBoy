@@ -1,5 +1,67 @@
 # Changes
 
+## 2.1
+
+AmiGameBoy 2.1, community version: a Game Boy and Game Boy Color emulator for AGA
+Amigas, on the AGA screen or a graphics board. Juan Antonio Gómez Gálvez's
+AmiGameBoy (menu and display) with the Game Boy engine of Wzonka-Lad by Ville
+Helin and Ventzislav Tzvetkov. Also on Aminet: misc/emu/AmiGameBoyCE.lha.
+
+**Three programs** (as in 2.0)
+- **AGA**: Game Boy and Game Boy Color on the AGA screen, for fast machines
+  (PiStorm, BigMig, 68060 cards).
+- **AGA 030**: Game Boy only, for an A1200 with a 68030/50.
+- **RTG**: Game Boy and Game Boy Color on a 16-bit Picasso96 screen.
+
+**What is new**
+- **Colours**: Game Boy Color games show LCD colours by default, softened as
+  the Game Boy Color's own screen showed them. `Colours = Raw` in
+  AmiGameBoy.config shows them as the game sets them.
+- **Options menu**: LCD Colours tick in AGA and RTG; Bezel and Scanlines ticks
+  in RTG. A tick changes the line in AmiGameBoy.config.
+- **Sound**: the four channels at the Game Boy's own balance, quieter than 2.0
+  and level with other Amiga emulators.
+- **Speed**: Final Fantasy Legend II and Mega Man V faster on a 68030/50.
+- **Pad test**: PadTest.gb, beside the programs, shows each Game Boy button as
+  the emulator sees it (keyboard, joystick or CD32 pad).
+- **Fixed**: the light line at the left edge of the AGA picture (mono and
+  colour); Dangan GB2's first stage.
+- **Credits**: z00p in the screen title and the main window.
+
+**Upgrading from 2.0**: unpack over it. An AmiGameBoy.config from 2.0 has no
+Colours line, so colour games start in LCD colours; untick LCD Colours in the
+Options menu, or add `Colours = Raw`, for 2.0's colours.
+
+**Requirements**: AGA and AmigaOS 3.0 or later. AGA 030: 68020 or better, a
+68030/50 for full speed. AGA and RTG: a PiStorm-class machine; RTG also needs
+Picasso96 and a 16-bit screen mode. Memory: about twice the cartridge's size
+plus 256 KB.
+
+**Not supported**: cartridges over 2 MB, the link cable, the Game Boy Camera and
+Printer, Super Game Boy features. AGA 030 refuses colour-only cartridges and
+runs dual-mode ones in mono. AGA: more than 255 colours in one picture are
+capped (rare).
+
+**Known issues**: none.
+
+**Tested** on an A1200 with a PiStorm (AGA, AGA 030 and RTG) and in WinUAE
+(68020 and 68030 settings).
+
+**Install**: unpack AmiGameBoy-2.1.lha and start AGA, AGA 030 or RTG in the
+AmiGameBoy drawer. ReadMe.txt and AmiGameBoy.guide have the keys, the pad, the
+settings and the saves. No games are included: use cartridge images you may
+legally have.
+
+**Credits**: Juan Antonio Gómez Gálvez (AmiGameBoy: menu and display), Ville
+Helin and Ventzislav Tzvetkov (Wzonka-Lad: the Game Boy engine), Multivac (icons
+and graphics in Juan's original), z00p (community version, sound, Game Boy
+Color), Afrotechmods / FAmiga (CD32 pad read).
+
+**Problems**: please open an issue with the game, the program (AGA, AGA 030 or
+RTG), your machine and what you saw.
+
+SHA-256 of AmiGameBoy-2.1.lha: 5c59881468551bf7aa821c32758f7d3a5a515360959da63ea3bb16d6f6428d2d
+
 ## 2.0
 
 AmiGameBoy 2.0, community version: a Game Boy and Game Boy Color emulator for AGA

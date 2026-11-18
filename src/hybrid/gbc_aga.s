@@ -121,8 +121,17 @@ gbc_aga_init:
 	move.l	#$01001001,(a0)+
 	move.l	#$4601FFFE,(a0)+	; then the picture's set-up
 	ENDC
+	IFD	GBC_AEDGE		; test: the A1200's light line left of pixel 0
+	move.l	#$008E48B2,(a0)+	; 1: the window opens a pixel later, 2: the whole window
+	IFEQ	GBC_AEDGE-2		; a pixel to the right
+	move.l	#$0090D852,(a0)+
+	ELSE
+	move.l	#$0090D851,(a0)+
+	ENDC
+	ELSE
 	move.l	#$008E48B1,(a0)+	; Juan's window: lines $48-$D7, H $B1-$150
 	move.l	#$0090D851,(a0)+
+	ENDC
 	move.l	#$00920040,(a0)+	; Juan's fetch: five 64-bit units, pixel 0 at
 	move.l	#$009400B8,(a0)+	; H $B1 with the delay below
 	move.l	#$01080000,(a0)+
@@ -188,7 +197,12 @@ gbc_aga_on:
 	lea	33*4(a1),a1
 	dbra	d1,.b
 	move.w	d0,2(a1)		; the last one: bank 0
+	IFD	GBC_APEN0		; pen 0 (only ever the border) in this 12-bit colour. 2.1: 0, black:
+	move.w	#GBC_APEN0,d2		; on the A1200 pen 0 shows in the window's first pixel (a light
+					; sliver left of the picture; magenta with $F0F, gone with 0)
+	ELSE
 	move.w	GBPaleta,d2		; 12-bit: high nibbles = low nibbles
+	ENDC
 	move.w	d2,4+2(a0)
 	move.w	d2,33*4+4+2(a0)
 	IFD	GBC_APROF

@@ -370,7 +370,21 @@ z80_cpu_sweep:	move.l	z80_cycles,a5				;a5 = cycles to do.
 		IFND	SPIKE_TRACE
 		dcb.b	114,0					;AmiGameBoy: JR offsets that may close a
 		dc.b	1,1,1,1,1,1,1,1,1,1,0,1,0,0		;poll loop: -14..-5 and -3 (idle_jr).
+		IFD	HY_JRPOLL
+		dcb.b	$be-$80,0				;HY_JRPOLL: opcode classes $80-$FF
+		dc.b	2,0					;$BE CP (HL)
+		dcb.b	$f0-$c0,0
+		IFD	HY_IDLEC
+		dc.b	3,0,4,0					;$F0 LDH A,(n), $F2 LD A,($FF00+C)
+		ELSE
+		dc.b	3,0,0,0					;$F0 LDH A,(n)
+		ENDC
+		dcb.b	$fa-$f4,0
+		dc.b	1					;$FA LD A,(nn)
+		dcb.b	$100-$fb,0
+		ELSE
 		dcb.b	128,0
+		ENDC
 		ENDC
 		ENDC
 z80_jump_table:
@@ -1499,8 +1513,30 @@ z80_optcode_20x:addq.l	#1,a0					;no jump.
 		fetch_next_i
 		IFD	IDL_QUICK
 jrq0c:	tst.b	-128(a1,d7.w)				;AmiGameBoy: 3 or 5-14 bytes back (table
+		IFD	HY_JRPOLL
+		beq.s	jrq0f					;under the handlers): a poll loop?
+		move.b	(a0),d6					;HY_JRPOLL: idle_jr's first test here, the
+		ext.w	d6					;target's opcode class from the table's
+		move.b	(a1,d6.w),d6				;other half (a1-66..a1-1 for $BE..$FF):
+		beq.s	jrq0f					;0 not a poll loop,
+		subq.b	#2,d6
+		bcs.l	idle_jr					;1 $FA LD A,(nn),
+		bne.s	jrq0i
+		cmp.w	#-3,d7					;2 $BE CP (HL), only as CP (HL); JR cc,-3,
+		beq.l	idle_jr
+		bra.s	jrq0f
+jrq0i:	subq.b	#1,d6					;3 $F0 LDH A,(n), 4 $F2 LD A,($FF00+C)
+		beq.s	jrq0j					;(HY_IDLEC), both unless STAT.
+		move.b	d1,d6
+		bra.s	jrq0k
+jrq0j:	move.b	1(a0),d6
+jrq0k:	cmp.b	#$41,d6
+		bne.l	idle_jr
+		bra.s	jrq0f
+		ELSE
 		bne.l	idle_jr					;under the handlers): a poll loop?
 		fetch_next_i
+		ENDC
 		ENDC
 		cnop	0,128
 
@@ -1785,8 +1821,30 @@ z80_optcode_28x:addq.l	#1,a0					;no jump.
 		fetch_next_i
 		IFD	IDL_QUICK
 jrq1c:	tst.b	-128(a1,d7.w)				;AmiGameBoy: 3 or 5-14 bytes back (table
+		IFD	HY_JRPOLL
+		beq.s	jrq1f					;under the handlers): a poll loop?
+		move.b	(a0),d6					;HY_JRPOLL: idle_jr's first test here, the
+		ext.w	d6					;target's opcode class from the table's
+		move.b	(a1,d6.w),d6				;other half (a1-66..a1-1 for $BE..$FF):
+		beq.s	jrq1f					;0 not a poll loop,
+		subq.b	#2,d6
+		bcs.l	idle_jr					;1 $FA LD A,(nn),
+		bne.s	jrq1i
+		cmp.w	#-3,d7					;2 $BE CP (HL), only as CP (HL); JR cc,-3,
+		beq.l	idle_jr
+		bra.s	jrq1f
+jrq1i:	subq.b	#1,d6					;3 $F0 LDH A,(n), 4 $F2 LD A,($FF00+C)
+		beq.s	jrq1j					;(HY_IDLEC), both unless STAT.
+		move.b	d1,d6
+		bra.s	jrq1k
+jrq1j:	move.b	1(a0),d6
+jrq1k:	cmp.b	#$41,d6
+		bne.l	idle_jr
+		bra.s	jrq1f
+		ELSE
 		bne.l	idle_jr					;under the handlers): a poll loop?
 		fetch_next_i
+		ENDC
 		ENDC
 		cnop	0,128
 
@@ -2087,8 +2145,30 @@ z80_optcode_30x:addq.l	#1,a0					;skip jump.
 		fetch_next_i
 		IFD	IDL_QUICK
 jrq2c:	tst.b	-128(a1,d7.w)				;AmiGameBoy: 3 or 5-14 bytes back (table
+		IFD	HY_JRPOLL
+		beq.s	jrq2f					;under the handlers): a poll loop?
+		move.b	(a0),d6					;HY_JRPOLL: idle_jr's first test here, the
+		ext.w	d6					;target's opcode class from the table's
+		move.b	(a1,d6.w),d6				;other half (a1-66..a1-1 for $BE..$FF):
+		beq.s	jrq2f					;0 not a poll loop,
+		subq.b	#2,d6
+		bcs.l	idle_jr					;1 $FA LD A,(nn),
+		bne.s	jrq2i
+		cmp.w	#-3,d7					;2 $BE CP (HL), only as CP (HL); JR cc,-3,
+		beq.l	idle_jr
+		bra.s	jrq2f
+jrq2i:	subq.b	#1,d6					;3 $F0 LDH A,(n), 4 $F2 LD A,($FF00+C)
+		beq.s	jrq2j					;(HY_IDLEC), both unless STAT.
+		move.b	d1,d6
+		bra.s	jrq2k
+jrq2j:	move.b	1(a0),d6
+jrq2k:	cmp.b	#$41,d6
+		bne.l	idle_jr
+		bra.s	jrq2f
+		ELSE
 		bne.l	idle_jr					;under the handlers): a poll loop?
 		fetch_next_i
+		ENDC
 		ENDC
 		cnop	0,128
 
@@ -2378,8 +2458,30 @@ z80_optcode_38x:addq.l	#1,a0					;skip jump.
 		fetch_next_i
 		IFD	IDL_QUICK
 jrq3c:	tst.b	-128(a1,d7.w)				;AmiGameBoy: 3 or 5-14 bytes back (table
+		IFD	HY_JRPOLL
+		beq.s	jrq3f					;under the handlers): a poll loop?
+		move.b	(a0),d6					;HY_JRPOLL: idle_jr's first test here, the
+		ext.w	d6					;target's opcode class from the table's
+		move.b	(a1,d6.w),d6				;other half (a1-66..a1-1 for $BE..$FF):
+		beq.s	jrq3f					;0 not a poll loop,
+		subq.b	#2,d6
+		bcs.l	idle_jr					;1 $FA LD A,(nn),
+		bne.s	jrq3i
+		cmp.w	#-3,d7					;2 $BE CP (HL), only as CP (HL); JR cc,-3,
+		beq.l	idle_jr
+		bra.s	jrq3f
+jrq3i:	subq.b	#1,d6					;3 $F0 LDH A,(n), 4 $F2 LD A,($FF00+C)
+		beq.s	jrq3j					;(HY_IDLEC), both unless STAT.
+		move.b	d1,d6
+		bra.s	jrq3k
+jrq3j:	move.b	1(a0),d6
+jrq3k:	cmp.b	#$41,d6
+		bne.l	idle_jr
+		bra.s	jrq3f
+		ELSE
 		bne.l	idle_jr					;under the handlers): a poll loop?
 		fetch_next_i
+		ENDC
 		ENDC
 		cnop	0,128
 

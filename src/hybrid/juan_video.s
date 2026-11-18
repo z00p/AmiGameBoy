@@ -2090,8 +2090,20 @@ DirSprit7:	DS.W	4
 
 
 Copper:
+	IFD	GBC_AEDGE		; test (see gbc_aga.s)
+	DC.W	$008E,$48B2
+	IFEQ	GBC_AEDGE-2
+	DC.W	$0090,$D852
+	ELSE
+	DC.W	$0090,$D851
+	ENDC
+	ELSE
 	DC.W	$008E,$48B1
 	DC.W	$0090,$D851
+	ENDC
+	IFD	HY_DIWFRAC		; the window opens HY_DIWFRAC quarter lores pixels later (2.1: 2; AGA
+	DC.W	$01E4,$2000+HY_DIWFRAC*8	; DIWHIGH: start H1-H0; stop H8 = 1, V8-V10 0, as implied now)
+	ENDC
 
 	DC.W	$0092,$0040
 	DC.W	$0094,$00B8

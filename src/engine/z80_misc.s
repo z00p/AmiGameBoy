@@ -609,6 +609,12 @@ lcd_protect:	lea	(a2,d7.l),a6
 		and.b	#%01111000,d6
 		and.b	#%10000111,(a6)
 		or.b	d6,(a6)
+		IFD	GBC_STATWR			;AmiGameBoy: the STAT write interrupt
+		IFD	HY_GBC				;below is the DMG's bug; the CGB has
+		tst.b	gbc_mode			;none (Dangan GB2's stage set-up).
+		bne.s	lcd_write_no_irq		;(No colour engine: nothing to do.)
+		ENDC
+		ENDC
 		IFND	NO_LCDOFFSTAT
 		btst.b	#7,-1(a6)			;AmiGameBoy: no STAT write interrupt
 		beq.s	lcd_write_no_irq		;with the LCD off.

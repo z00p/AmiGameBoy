@@ -1,6 +1,6 @@
 # AmiGameBoy
 
-**AmiGameBoy 2.0, community version** (17 November 2026). Download: the LhA archive on the [Releases](https://github.com/z00p/AmiGameBoy/releases) page, or Aminet misc/emu/AmiGameBoyCE.lha.
+**AmiGameBoy 2.1, community version** (18 November 2026). Download: the LhA archive on the [Releases](https://github.com/z00p/AmiGameBoy/releases) page, or Aminet misc/emu/AmiGameBoyCE.lha.
 
 AmiGameBoy is a Game Boy and Game Boy Color emulator for AGA Amigas, in
 68020+ assembly. It plays .gb and .gbc cartridges with sound, battery
@@ -80,8 +80,10 @@ CD32 pad in port 2:
 ## The settings file
 Each program writes the file AmiGameBoy.config beside itself the first
 time it starts, and reads it each time it starts. Edit it with any text
-editor; delete it to get the defaults back. The settings below are only
-in this file for now, not in the menu. One setting a line:
+editor; delete it to get the defaults back. Bezel and Scanlines are in
+the RTG program's Options menu too, and LCD Colours in the AGA and RTG
+programs' Options menu: a tick there changes the line in the file (the
+bezel shows from the next Continue). One setting a line:
 
 ```
   Red = A        what a pad button does. Buttons: Red, Blue, Green,
@@ -95,11 +97,22 @@ in this file for now, not in the menu. One setting a line:
   Bezel = On     RTG: a screen surround round the picture.
   Scanlines = Off  RTG: On darkens the last screen line of each picture
                  line, like a CRT.
+  Colours = LCD  AGA and RTG, Game Boy Color games: LCD softens the
+                 colours as the Game Boy Color's own screen showed
+                 them; Raw shows them as the game sets them. A file
+                 from 2.0 has no Colours line, so LCD: add the line
+                 Colours = Raw to change it.
 ```
 
 CD32 pads tried on an A1200: a KTRL CD32 with "CD32 pad"; a Mega Multi
 adapter in CD32 mode with "KTRL CD32+" (its Start button does not come
 through: use Help on the keyboard).
+
+Pad test: PadTest.gb, beside the programs, is a small test cartridge.
+Load it from the menu like a game: it lists the Game Boy buttons with
+the pad buttons that drive them by default, and each box fills while
+the Game Boy sees that button held (keyboard, joystick or pad). If a
+pad button flickers or does not fill its box, try the other Pad line.
 
 ## Battery saves
 A game that saves keeps its battery RAM in a .sav file beside the
@@ -125,11 +138,6 @@ Red. Save Prefs writes the settings to S:AmiGameBoy.prefs.
   (keyboard, joystick and CD32 pad are always active).
 - AGA: a picture with more than 255 colours at once loses some (rare).
 Cartridge types MBC1, MBC2, MBC3 (with the clock) and MBC5 are handled.
-
-## Known issues
-- Final Fantasy Legend II and Mega Man V run slower on a 68030/50.
-- AGA and AGA 030: a thin light line can show down the left edge of the
-  picture (cosmetic).
 
 ## Credits
 - Juan Antonio Gómez Gálvez: AmiGameBoy, the menu and the display.
@@ -158,6 +166,12 @@ and ran the games on Wzonka-Lad's engine, which added the timer, the
 memory controllers, battery saves and four-channel sound. Version 2.0
 adds Game Boy Color on AGA and RTG, saves of up to 128 KB, a steadier
 CD32 pad read and a choice of two ways to read it.
+Version 2.1 shows Game Boy Color games in LCD colours (Raw is a tick
+in the Options menu away), puts Bezel and Scanlines in the RTG menu,
+sets the sound at the Game Boy's own balance (quieter than 2.0), runs
+Final Fantasy Legend II and Mega Man V faster on a 68030/50, adds the
+pad test cartridge, removes the light line at the left edge of the AGA
+picture and fixes Dangan GB2's first stage.
 
 ## Source and building
 

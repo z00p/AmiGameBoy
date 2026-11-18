@@ -246,6 +246,62 @@ Start:	movem.l	d2-d7/a2-a6,-(sp)
 	IFD	HY_HOLD
 HyHoldMsg:	dc.b	"HOLD",13,10,0
 	even
+	IFD	HY_DBGPAL
+HyDbgBuf:	ds.b	64
+	ENDC
+	IFD	HY_DBGVRAM
+; d1 bytes from a1 (a1 advances) to the serial port in hex, then CR LF. Uses d0-d3.
+HyHexLine:
+	subq.w	#1,d1
+.b:	move.b	(a1)+,d0
+	moveq	#2-1,d2
+.n:	rol.b	#4,d0
+	move.b	d0,d3
+	and.w	#$f,d3
+	add.b	#'0',d3
+	cmp.b	#'9',d3
+	bls.s	.d
+	addq.b	#7,d3
+.d:	bsr.s	HySerOut
+	dbra	d2,.n
+	dbra	d1,.b
+	moveq	#13,d3
+	bsr.s	HySerOut
+	moveq	#10,d3
+HySerOut:				; d3.b to the serial port
+.t:	btst	#13-8,$dff018		; SERDATR TBE
+	beq.s	.t
+	and.w	#$ff,d3
+	or.w	#$100,d3		; stop bit
+	move.w	d3,$dff030
+	rts
+	ENDC
+	ENDC
+
+	IFD	HY_PRESS
+	IFEQ	HY_PRESS-4
+HyPressDir:	dc.b	$ff		; this frame's directions, low active
+	even
+; HyFrames first, last, buttons (A 1, B 2, Select 4, Start 8), directions (Right 1, Left 2,
+; Up 4, Down 8), in frame order. Dangan GB2: title, menu, select (left), profile, stage 1
+; (the same presses as the Mesen reference run, 17 Nov 2026).
+HyPressTab:
+	dc.w	700,706
+	dc.b	8,0
+	dc.w	1000,1006
+	dc.b	1,0
+	dc.w	1300,1306
+	dc.b	0,2
+	dc.w	1500,1506
+	dc.b	1,0
+	dc.w	1800,1806
+	dc.b	1,0
+	dc.w	2100,2106
+	dc.b	1,0
+	dc.w	2400,2406
+	dc.b	1,0
+	dc.w	0
+	ENDC
 	ENDC
 
 ; ---- level 3: count Amiga frames
@@ -488,6 +544,28 @@ hybrid_frame:
 	move.b	EstadoJoy+1(a3),d0	; buttons, low active: A B Select Start
 	or.b	#$f0,d0
 	move.b	d0,buttons_byte
+	IFD	HY_PRESS
+	IFEQ	HY_PRESS-4		; test: the presses in HyPressTab (a menu path to a stage)
+	move.l	a0,-(sp)
+	st	HyPressDir		; nothing pressed (low active)
+	move.l	HyFrames,d0
+	lea	HyPressTab,a0
+.ptab:	move.w	(a0)+,d2		; first frame, 0 = end of the table
+	beq.s	.ptx
+	cmp.w	d2,d0
+	bcs.s	.ptx			; the table is in frame order
+	cmp.w	(a0)+,d0		; last frame
+	bhi.s	.pnext
+	move.b	(a0),d2			; buttons to press (bits low active: A B Select Start)
+	not.b	d2
+	and.b	d2,buttons_byte
+	move.b	1(a0),d2		; directions (Right Left Up Down)
+	not.b	d2
+	and.b	d2,HyPressDir
+.pnext:	addq.l	#2,a0
+	bra.s	.ptab
+.ptx:	move.l	(sp)+,a0
+	ELSE
 	IFD	HY_PRESS		; test: Start for 6 frames in every 200 up to frame 1200
 	move.l	HyFrames,d0		; (gets past title screens for grabs); HY_PRESS=2:
 	IFEQ	HY_PRESS-3		; Start and A for 6 in every 100 up to 2400;
@@ -516,8 +594,15 @@ hybrid_frame:
 	ENDC
 .nopr:
 	ENDC
+	ENDC
+	ENDC
 	move.b	EstadoJoy+2(a3),d0	; directions: Right Left Up Down
 	or.b	#$f0,d0
+	IFD	HY_PRESS
+	IFEQ	HY_PRESS-4
+	and.b	HyPressDir,d0
+	ENDC
+	ENDC
 	move.b	d0,directions_byte
 	addq.l	#1,HyFrames
 	IFD	GBC_RENDER
@@ -531,9 +616,70 @@ hybrid_frame:
 	ENDC
 	IFD	HY_HOLD			; test: show frame HY_HOLD and stop there (grabs)
 	cmp.l	#HY_HOLD+1,HyFrames	; +1: the spike's frame 0 ends at the second LY 144 (as Mesen)
+	IFD	HY_DBGPAL
+HY_HOLDW	SET	1
+	ENDC
+	IFD	HY_DBGRGB
+HY_HOLDW	SET	1
+	ENDC
+	IFD	HY_HOLDW
+	bcs.w	.run
+	ELSE
 	bcs.s	.run
+	ENDC
 .hold:	lea	HyHoldMsg(pc),a0	; tell uaerun --serial-until HOLD
+	IFD	HY_DBGPAL		; test: GBPaleta (8 bytes), BGP, HyPal0 in hex, then HOLD
+	lea	HyDbgBuf+40,a2
+	move.l	GBPaleta,(a2)
+	move.l	GBPaleta+4,4(a2)
+	move.b	RRAM+$1f47,8(a2)
+	move.b	HyPal0,9(a2)
+	lea	HyDbgBuf,a1
+	moveq	#10-1,d1
+.db:	move.b	(a2)+,d0
+	moveq	#2-1,d2
+.dn:	rol.b	#4,d0
+	move.b	d0,d3
+	and.b	#$f,d3
+	add.b	#'0',d3
+	cmp.b	#'9',d3
+	bls.s	.dd
+	addq.b	#7,d3
+.dd:	move.b	d3,(a1)+
+	dbra	d2,.dn
+	dbra	d1,.db
+	move.b	#' ',(a1)+
+.dh:	move.b	(a0)+,(a1)+		; then HOLD
+	bne.s	.dh
+	lea	HyDbgBuf,a0
+	ENDC
 	move.w	#372,$dff032		; SERPER: 9600 baud (PAL)
+	IFD	HY_DBGVRAM		; test: "IO" + $FF40-$FF4F + VBK, then gbc_vram (both banks),
+	move.w	#30,$dff032		; 32 bytes a line in hex, then HOLD (115200 baud)
+	lea	RRAM+$1f40,a1
+	moveq	#16,d1
+	bsr.w	HyHexLine
+	lea	gbc_vbk,a1
+	moveq	#1,d1
+	bsr.w	HyHexLine
+	lea	gbc_vram,a1
+	move.w	#16384/32-1,d4
+.vl:	moveq	#32,d1
+	bsr.w	HyHexLine
+	dbra	d4,.vl
+	IFD	HY_DBGRGB		; then palette RAM (BG, OBJ: 4 lines) and gbc_rgb (4 lines)
+	lea	gbc_bgpal,a1
+	moveq	#4-1,d4
+.pl:	moveq	#32,d1
+	bsr.w	HyHexLine
+	dbra	d4,.pl
+	lea	gbc_rgb,a1
+	moveq	#4-1,d4
+.rl:	moveq	#32,d1
+	bsr.w	HyHexLine
+	dbra	d4,.rl
+	ENDC
+	ENDC
 .ser:	move.b	(a0)+,d0
 	beq.s	.idle
 .tbe:	btst	#13-8,$dff018		; SERDATR TBE
@@ -554,6 +700,14 @@ hybrid_frame:
 	bne.s	.nopause
 	st	SalirMenu(a3)
 .nopause:
+	ENDC
+	IFD	HY_CCTEST		; test: LCD Colours turned over at frame HY_CCTEST, as the menu tick does
+	cmp.l	#HY_CCTEST,HyFrames
+	bne.s	.nocc
+	move.b	gbc_ccon,d7
+	eor.b	#1,d7
+	jsr	gbc_ccset
+.nocc:
 	ENDC
 	tst.b	SalirMenu(a3)		; Esc
 	IFD	HY_MENU
@@ -982,6 +1136,23 @@ HyWzEnd:				; end of the engine state (menu.s keeps a copy)
 	ENDC
 	IFD	GBC_RTG
 	include	"gbc_rtg.s"
+	ENDC
+	IFD	GBC_RMENU		; 2.1: Bezel and Scanlines in the Options menu (RTG)
+	IFND	GBC_RBEZ
+	FAIL	"GBC_RMENU needs GBC_RBEZ and GBC_RSCAN"
+	ENDC
+	IFND	GBC_RSCAN
+	FAIL	"GBC_RMENU needs GBC_RBEZ and GBC_RSCAN"
+	ENDC
+	include	"rmenu.s"
+	ENDC
+	IFD	GBC_CCMENU		; 2.1: LCD Colours in the Options menu (AGA, RTG)
+	IFND	GBC_CCOPT
+	FAIL	"GBC_CCMENU needs GBC_CCOPT"
+	ENDC
+	IFND	GBC_RMENU
+	include	"rmenu.s"
+	ENDC
 	ENDC
 	IFD	GBC_AGA
 	include	"gbc_aga.s"

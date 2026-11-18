@@ -96,8 +96,17 @@ HyBezOn:
 	move.l	56(a2),(a1)+
 	move.l	60(a2),(a1)+
 	move.l	#$4701FFFE,(a1)+
+	IFD	GBC_AEDGE		; test (see gbc_aga.s)
+	move.l	#$008E48B2,(a1)+
+	IFEQ	GBC_AEDGE-2
+	move.l	#$0090D852,(a1)+
+	ELSE
+	move.l	#$0090D851,(a1)+
+	ENDC
+	ELSE
 	move.l	#$008E48B1,(a1)+	; his window, fetch and modulos (Copper:)
 	move.l	#$0090D851,(a1)+
+	ENDC
 	move.l	#$00920040,(a1)+
 	move.l	#$009400B8,(a1)+
 	move.l	#$0108FFF8,(a1)+

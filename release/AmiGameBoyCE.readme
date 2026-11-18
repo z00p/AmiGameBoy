@@ -2,7 +2,7 @@ Short:        Game Boy + Color emulator, AGA and RTG
 Author:       Juan Antonio Gomez Galvez, Ville Helin, Ventzislav Tzvetkov, z00p
 Uploader:     Zoopster (JCEC_1@yahoo.co.uk)
 Type:         misc/emu
-Version:      2.0
+Version:      @VERSION@
 Replaces:     misc/emu/AmiGameBoyCE.lha
 Architecture: m68k-amigaos >= 3.0.0
 Requires:     AGA, 68020+ (68030/50 for mono, PiStorm-class for colour)
@@ -28,6 +28,13 @@ on. This community version, released with his consent, keeps his menu
 and his AGA display and runs the games on the Game Boy engine of
 Wzonka-Lad by Ville Helin and Ventzislav Tzvetkov (GPL-2).
 
+2.1   Colour games in LCD colours by default ("Colours = Raw" for the
+      colours as the game sets them); LCD Colours in the AGA and RTG
+      Options menu, Bezel and Scanlines in the RTG one. Sound at the
+      Game Boy's own balance (quieter). Final Fantasy Legend II and
+      Mega Man V faster on a 68030/50. A pad test cartridge, PadTest.gb.
+      Fixed: the light line at the left edge of the AGA picture, Dangan
+      GB2's first stage.
 2.0   Game Boy Color: the AGA and RTG programs play colour cartridges
       (colour-only and dual-mode). The RTG program draws on a graphics
       board, with a screen surround (Bezel), LCD blend and scanlines,
@@ -68,12 +75,6 @@ Not supported
 Cartridges over 2 MB, the link cable, the Game Boy Camera and Printer,
 Super Game Boy features. AGA 030 refuses colour-only cartridges and runs
 dual-mode ones in mono.
-
-Known issues
-------------
-- Final Fantasy Legend II and Mega Man V run slower on a 68030/50.
-- AGA and AGA 030: a thin light line can show down the left edge of the
-  picture (cosmetic).
 
 Credits
 -------

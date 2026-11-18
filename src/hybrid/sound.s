@@ -224,11 +224,26 @@ HySndVol:
 
 ; Paula volume for Game Boy volume v (0-15) x NR50 side m (0-7): v*(m+1)*64/120
 HyVolTab:
+	IFD	HY_VOLPCT
+; HY_VOLPCT = N: the same table at N %, rounded (100 gives the table below). A Game Boy
+; channel at full volume is a quarter of the output's range (four share it); here a side
+; has two voices, so 50 keeps that proportion
+.v	set	0
+	rept	16
+.m	set	1
+	rept	8
+	dc.b	(.v*.m*64*HY_VOLPCT+6000)/12000
+.m	set	.m+1
+	endr
+.v	set	.v+1
+	endr
+	ELSE
 	dc.b	0,0,0,0,0,0,0,0,1,1,2,2,3,3,4,4,1,2,3,4,5,6,7,9,2,3,5,6,8,10,11,13
 	dc.b	2,4,6,9,11,13,15,17,3,5,8,11,13,16,19,21,3,6,10,13,16,19,22,26
 	dc.b	4,7,11,15,19,22,26,30,4,9,13,17,21,26,30,34,5,10,14,19,24,29,34,38
 	dc.b	5,11,16,21,27,32,37,43,6,12,18,23,29,35,41,47,6,13,19,26,32,38,45,51
 	dc.b	7,14,21,28,35,42,49,55,7,15,22,30,37,45,52,60,8,16,24,32,40,48,56,64
+	ENDC
 	even
 
 ; ---- all four volumes (NR50, NR51 changed)

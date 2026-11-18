@@ -432,7 +432,19 @@ NeedASL:
 About:
 	BSR	DisMouse
 	MOVEM.L	MCeros,D0-D7/A0-A6
+	IFD	GBC_RMENU
+	JSR	OpenAboutWindow		; hybrid: the menu's two items put it out of BSR reach
+	ELSE
+	IFD	GBC_CCMENU
+	JSR	OpenAboutWindow		; hybrid: so does the LCD Colours item
+	ELSE
+	IFD	HY_CREDZ
+	JSR	OpenAboutWindow		; hybrid: and the z00p credit texts
+	ELSE
 	BSR	OpenAboutWindow
+	ENDC
+	ENDC
+	ENDC
 
 ; TEMPORAL:
 	LEA	AboutGadgets+(GD_Aboutmore*4),A0
@@ -3256,6 +3268,13 @@ MenuOptions:
 	DC.L	ControlRET		; Disable Cheats
 	DC.L	ControlRET		; Ask for Reset
 	DC.L	ControlRET		; -----
+	IFD	GBC_RMENU
+	DC.L	gbc_rmbez		; hybrid: Bezel (RTG, hybrid/rmenu.s)
+	DC.L	gbc_rmscan		; hybrid: Scanlines
+	ENDC
+	IFD	GBC_CCMENU
+	DC.L	gbc_rmcc		; hybrid: LCD Colours (AGA, RTG, hybrid/rmenu.s)
+	ENDC
 
 SubMenuCPU:
 	DC.L	ControlRET		; Syncronized

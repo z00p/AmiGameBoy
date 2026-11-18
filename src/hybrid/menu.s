@@ -705,6 +705,10 @@ tHyErrType:	dc.b	4,"Unknown cartridge type",0,"Not supported yet",0
 	IFD	GBC_RTG
 tHyErrRtg:	dc.b	4,"No RTG screen",0,"Needs a 16-bit Picasso96 mode",0
 	ENDC
+	IFD	HY_REL21		; the 2.1 release (with HY_REL20 for the 2.0 text fixes)
+HyAb0:		dc.b	"AmiGameBoy 2.1 community version",0
+HyAb1:		dc.b	"(18 November 2026)",0
+	ELSE
 	IFD	HY_REL20		; the 2.0 release
 HyAb0:		dc.b	"AmiGameBoy 2.0 community version",0
 HyAb1:		dc.b	"(17 November 2026)",0
@@ -712,20 +716,35 @@ HyAb1:		dc.b	"(17 November 2026)",0
 HyAb0:		dc.b	"AmiGameBoy 1.0 community version",0
 HyAb1:		dc.b	"(14 November 2026)",0
 	ENDC
+	ENDC
 HyAb2:		dc.b	"Menu and display:",0
 HyAb4:		dc.b	"Game Boy engine (Wzonka-Lad):",0
 HyAb5:		dc.b	"Ville Helin, Ventzislav Tzvetkov",0
 HyAb6:		dc.b	"Icons and Graphics: Multivac",0
 HyAb7:		dc.b	"Community version: z00p",0
 HyAb8:		dc.b	"GNU GPL v2, no warranty",0
+	IFD	HY_REL21
+HyWTitle:	dc.b	"AmiGameBoy 2.1",0
+HySTitle:	dc.b	"AmiGameBoy 2.1 community version"
+	ELSE
 	IFD	HY_REL20		; the 2.0 release
 HyWTitle:	dc.b	"AmiGameBoy 2.0",0
-HySTitle:	dc.b	"AmiGameBoy 2.0 community version. ",$a9," 1997-2026 "
+HySTitle:	dc.b	"AmiGameBoy 2.0 community version"
 	ELSE
 HyWTitle:	dc.b	"AmiGameBoy 1.0",0
-HySTitle:	dc.b	"AmiGameBoy 1.0 community version. ",$a9," 1997-2026 "
+HySTitle:	dc.b	"AmiGameBoy 1.0 community version"
 	ENDC
-		dc.b	"Juan Antonio G",$f3,"mez G",$e1,"lvez",0
+	ENDC
+	IFD	HY_CREDZ		; z00p credited too (the full stop goes to make room)
+		dc.b	" ",$a9," 1997-2026 "
+	ELSE
+		dc.b	". ",$a9," 1997-2026 "
+	ENDC
+		dc.b	"Juan Antonio G",$f3,"mez G",$e1,"lvez"
+	IFD	HY_CREDZ
+		dc.b	", z00p"
+	ENDC
+		dc.b	0
 	even
 	IFD	HY_ASLPAT
 ; Insert's RequestFile tags: a pattern gadget set to the cartridge names, so launcher

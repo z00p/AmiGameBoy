@@ -242,7 +242,17 @@ idle_slow:	move.l	a5,d6
 		cmp.b	#$fa,d6
 		beq.s	idle_go
 		cmp.b	#$f0,d6
+		IFD	HY_IDLEC
+		beq.s	idle_f0
+		cmp.b	#$f2,d6				;LD A,($FF00+C) (HY_IDLEC): C is d1.b,
 		bne.w	idle_no
+		cmp.b	#$41,d1				;and STAT is left out as for LDH.
+		beq.w	idle_no
+		bra.s	idle_go
+idle_f0:
+		ELSE
+		bne.w	idle_no
+		ENDC
 		cmp.b	#$41,1(a0)			;STAT: nothing to gain (and the last
 		beq.w	idle_no				;record stays).
 idle_go:
@@ -292,7 +302,20 @@ idle_grp:	moveq	#0,d2				;d6 = A all through.
 		lea	(a2,d2.l),a4
 		addq.w	#3,d0
 		bra.s	idle_ld
-idle_nn:	cmp.b	#$fa,d7
+idle_nn:
+		IFD	HY_IDLEC
+		cmp.b	#$f2,d7
+		bne.s	idle_nf2
+		move.w	#$ff00,d2			;LD A,($FF00+C), as z80_optcode_F2:
+		move.b	7(sp),d2			;C from the saved d1.
+		cmp.b	#$41,d2				;STAT: nothing to gain.
+		beq.w	idle_no0
+		lea	(a2,d2.l),a4
+		addq.w	#2,d0
+		bra.s	idle_ld
+idle_nf2:
+		ENDC
+		cmp.b	#$fa,d7
 		bne.s	idle_op1			;no load: a test of the same A.
 		move.w	(a6)+,d2			;LD A,(nn), as z80_optcode_FA.
 		addq.w	#4,d0
@@ -402,6 +425,12 @@ idle_last:	btst	#0,d1
 		bmi.w	idle_no0
 		move.l	a0,idl_adr			;on record: top, test, JR,
 		move.l	a1,idl_adr+8
+		IFD	HY_IDLEC
+		lea	1(a0),a6			;LD A,(C): one byte, 2 cycles.
+		moveq	#2,d6
+		cmp.b	#$f2,(a0)
+		beq.s	idle_rec
+		ENDC
 		lea	2(a0),a6
 		moveq	#3,d6
 		cmp.b	#$f0,(a0)

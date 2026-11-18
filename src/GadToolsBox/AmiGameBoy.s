@@ -1913,7 +1913,11 @@ MainMenuText0:
     DC.B    7,0
     DC.B    $00
     DC.B    0
+	IFD	HY_CREDZ		; z00p credit: the lines move up
+    DC.W    446,22
+	ELSE
     DC.W    446,34
+	ENDC
     DC.L    topaz8
     DC.L    MainMenuIText0
     DC.L    MainMenuText1
@@ -1931,7 +1935,11 @@ MainMenuText2:
     DC.B    6,0
     DC.B    $00
     DC.B    0
+	IFD	HY_CREDZ		; z00p credit: the lines move up
+    DC.W    387,34
+	ELSE
     DC.W    387,45
+	ENDC
     DC.L    topaz8
     DC.L    MainMenuIText2
     DC.L    MainMenuText3
@@ -1940,7 +1948,11 @@ MainMenuText3:
     DC.B    6,0
     DC.B    $00
     DC.B    0
+	IFD	HY_CREDZ		; z00p credit: the lines move up
+    DC.W    380,11
+	ELSE
     DC.W    412,11
+	ENDC
     DC.L    topaz8
     DC.L    MainMenuIText3
     DC.L    MainMenuText4
@@ -1959,13 +1971,47 @@ MainMenuText5:
     DC.B    $00
     DC.B    0
 	IFD	HY_REL20		; 2.0 release text (1.0.1 fixes, public d253f9b)
+	IFD	HY_CREDZ		; (GPL-2) beside the name, a line for z00p
+    DC.W    540,11
+	ELSE
     DC.W    460,22
+	ENDC
 	ELSE
     DC.W    448,22
 	ENDC
     DC.L    topaz8
     DC.L    MainMenuIText5
+	IFD	HY_CREDZ
+    DC.L    HyCredText0
+	ELSE
     DC.L    MainMenuText6
+	ENDC
+
+	IFD	HY_CREDZ
+HyCredText0:
+    DC.B    7,0
+    DC.B    $00
+    DC.B    0
+    DC.W    396,45
+    DC.L    topaz8
+    DC.L    HyCredIText0
+    DC.L    HyCredText1
+
+HyCredText1:
+    DC.B    6,0
+    DC.B    $00
+    DC.B    0
+    DC.W    548,45
+    DC.L    topaz8
+    DC.L    HyCredIText1
+    DC.L    MainMenuText6
+
+HyCredIText0:
+    DC.B    'Community version:',0
+HyCredIText1:
+    DC.B    'z00p',0
+    CNOP    0,2
+	ENDC
 
 MainMenuText6:
     DC.B    7,0
@@ -4593,6 +4639,41 @@ MainMenuNewMenu63:
     DC.L    MainMenuMComm63
     DC.W    $0009
     DC.L    0,0
+
+	IFD	GBC_RMENU		; AmiGameBoy 2.1, RTG: Bezel, Scanlines (hybrid/rmenu.s)
+MainMenuNewMenu64:
+    DC.B    2,0
+    DC.L    $FFFFFFFF,0
+    DC.W    0
+    DC.L    0,0
+MainMenuNewMenu65:
+    DC.B    2,0
+    DC.L    gbc_rmname0
+    DC.L    0
+    DC.W    $0009
+    DC.L    0,0
+MainMenuNewMenu66:
+    DC.B    2,0
+    DC.L    gbc_rmname1
+    DC.L    0
+    DC.W    $0009
+    DC.L    0,0
+	ENDC
+	IFD	GBC_CCMENU		; AmiGameBoy 2.1, AGA and RTG: LCD Colours (hybrid/rmenu.s)
+	IFND	GBC_RMENU
+MainMenuNewMenu67:
+    DC.B    2,0
+    DC.L    $FFFFFFFF,0
+    DC.W    0
+    DC.L    0,0
+	ENDC
+MainMenuNewMenu68:
+    DC.B    2,0
+    DC.L    gbc_rmtext2
+    DC.L    0
+    DC.W    $0009
+    DC.L    0,0
+	ENDC
 
     DC.B    0,0
     DC.L    0,0

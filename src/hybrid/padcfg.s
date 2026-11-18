@@ -101,6 +101,10 @@ HY_RCFG	SET	1
 	move.l	sp,a0
 	jsr	gbc_rcfg
 	ENDC
+	IFD	GBC_CCOPT		; "Colours = Raw | LCD" (gbc_line.s)
+	move.l	sp,a0
+	jsr	gbc_cccfg
+	ENDC
 	IFD	HY_CD32KIT		; "Pad = CD32 pad | KTRL CD32+" (cd32read.s)
 	move.l	sp,a0
 	jsr	HyCD32Cfg
@@ -138,6 +142,13 @@ HY_RCFG	SET	1
 	move.l	d4,d1
 	jsr	-36(a6)
 .notest:
+	ENDC
+	IFD	GBC_RMENU		; the menu's Bezel and Scanlines ticks (rmenu.s)
+	jsr	gbc_rmsync
+	ELSE
+	IFD	GBC_CCMENU		; the menu's LCD Colours tick (rmenu.s)
+	jsr	gbc_rmsync
+	ENDC
 	ENDC
 	move.l	d7,pr_WindowPtr(a5)
 	movem.l	(sp)+,d0-d7/a0-a6
@@ -342,6 +353,15 @@ HyPadCfgText:
 	dc.b	"; Scanlines = On darkens the last screen line of each picture line,",10
 	dc.b	"; like a CRT. (RTG only)",10
 	dc.b	"Scanlines = Off",10
+	ENDC
+	IFD	GBC_CCOPT
+	dc.b	"; Colours: Raw (as the game sets them) or LCD (softer, as the Game Boy",10
+	dc.b	"; Color's own screen showed them). Game Boy Color games only.",10
+	IFD	GBC_CCDEF		; 2.1: LCD unless the file says Raw
+	dc.b	"Colours = LCD",10
+	ELSE
+	dc.b	"Colours = Raw",10
+	ENDC
 	ENDC
 HyPadCfgEnd:
 	even

@@ -190,6 +190,14 @@ gbc_mktab:
 	lsr.w	#8,d2
 	lsr.w	#2,d2			; b
 	IFD	GBC_CC
+GBC_CCW	SET	1
+	ENDC
+	IFD	GBC_CCOPT		; "Colours = LCD" in the config (gbc_cccfg): the weights below
+GBC_CCW	SET	1
+	tst.b	gbc_ccon
+	beq.w	.raw
+	ENDC
+	IFD	GBC_CCW
 	move.w	d0,d3			; r' (d3)
 	mulu.w	#26,d3
 	move.w	d1,d4
@@ -224,7 +232,12 @@ gbc_mktab:
 	bls.s	.c3
 	move.w	d0,d5
 .c3:
-	ELSE
+	ENDC
+	IFD	GBC_CCOPT
+	bra.w	.conv
+.raw:
+	ENDC
+	IFND	GBC_CC
 	move.w	d0,d3			; v = c << 3 | c >> 2
 	lsl.w	#3,d3
 	lsr.w	#2,d0
@@ -237,6 +250,9 @@ gbc_mktab:
 	lsl.w	#3,d5
 	lsr.w	#2,d2
 	or.w	d2,d5
+	ENDC
+	IFD	GBC_CCOPT
+.conv:
 	ENDC
 	IFD	GBC_AGA			; AGA (24-bit through LOCT): the high nibbles in gbc_ctab,
 	move.w	d3,d0			; the low nibbles in gbc_ctab2
@@ -764,6 +780,120 @@ gbc_dmgrgb:
 	lsr.b	#2,d3
 	dbra	d4,.f
 	rts
+	ENDC
+
+	IFD	GBC_CCOPT
+; ---- "Colours = Raw|LCD" (or Colors) in the config text (padcfg.s calls this on what it read):
+; a0 = text, a1 = its end. Raw (the default): the colours as the game sets them; LCD: as the Game
+; Boy Color's screen showed them (gbc_mktab's weights, as Mesen's default). Any case, blanks around
+; the "="; a line that does not parse changes nothing. Keeps every register.
+	SECTION	gbclccode,CODE
+gbc_cccfg:
+	movem.l	d0-d1/a0/a2-a4,-(sp)
+.line:	bsr.s	.blank
+	move.l	a0,a3			; the line, after its blanks
+	lea	gbc_cckey,a2
+	bsr.s	.word
+	bne.s	.key
+	move.l	a3,a0
+	lea	gbc_cckey2,a2
+	bsr.s	.word
+	beq.s	.skip
+.key:	bsr.s	.blank
+	cmp.l	a1,a0
+	bcc.s	.skip
+	cmp.b	#"=",(a0)+
+	bne.s	.skip
+	bsr.s	.blank
+	move.l	a0,a4
+	lea	gbc_ccraw,a2
+	bsr.s	.word
+	beq.s	.v2
+	clr.b	gbc_ccon
+	bra.s	.skip
+.v2:	move.l	a4,a0
+	lea	gbc_cclcd,a2
+	bsr.s	.word
+	beq.s	.skip
+	move.b	#1,gbc_ccon
+.skip:	move.l	a3,a0			; to the next line
+.sk:	cmp.l	a1,a0
+	bcc.s	.x
+	cmp.b	#10,(a0)+
+	bne.s	.sk
+	bra.s	.line
+.x:	movem.l	(sp)+,d0-d1/a0/a2-a4
+	rts
+; a0 over spaces, tabs and CRs
+.blank:	cmp.l	a1,a0
+	bcc.s	.bx
+	move.b	(a0),d0
+	cmp.b	#" ",d0
+	beq.s	.b1
+	cmp.b	#9,d0
+	beq.s	.b1
+	cmp.b	#13,d0
+	bne.s	.bx
+.b1:	addq.l	#1,a0
+	bra.s	.blank
+.bx:	rts
+; the upper-case word at a2 (ends with 0) at a0, any case, a whole word: NE and a0 behind it, or EQ
+.word:	move.b	(a2)+,d1
+	beq.s	.wend
+	cmp.l	a1,a0
+	bcc.s	.wf
+	move.b	(a0)+,d0
+	cmp.b	#"a",d0
+	bcs.s	.wu
+	cmp.b	#"z",d0
+	bhi.s	.wu
+	sub.b	#32,d0
+.wu:	cmp.b	d0,d1
+	beq.s	.word
+.wf:	moveq	#0,d0			; EQ
+	rts
+.wend:	cmp.l	a1,a0
+	bcc.s	.wok
+	move.b	(a0),d0
+	and.b	#$df,d0
+	cmp.b	#"A",d0
+	bcs.s	.wok
+	cmp.b	#"Z",d0
+	bls.s	.wf
+.wok:	moveq	#1,d0			; NE
+	rts
+
+	IFD	GBC_CCMENU
+GBC_CCSET	SET	1
+	ENDC
+	IFD	HY_CCTEST
+GBC_CCSET	SET	1
+	ENDC
+	IFD	GBC_CCSET
+; ---- d7.b = 1 LCD, 0 Raw -> gbc_ccon; the colour table (gbc_mktab) and the colours made again
+; before the next picture (the menu's LCD Colours tick, rmenu.s). Keeps every register.
+gbc_ccset:
+	move.b	d7,gbc_ccon
+	clr.b	gbc_ctabfmt		; never pixfmt|$80: gbc_mktab again
+	IFD	GBC_AGA
+	jsr	gbc_pnew		; new pens, every colour from the new table
+	ELSE
+	st	gbc_paldirty		; gbc_mkrgb again
+	ENDC
+	rts
+	ENDC
+
+	SECTION	gbclcdata,DATA
+	IFD	GBC_CCDEF		; LCD colours unless the config says Raw (the 2.1 default)
+gbc_ccon:	dc.b	1		; "Colours = LCD"
+	ELSE
+gbc_ccon:	dc.b	0		; "Colours = Raw"
+	ENDC
+gbc_cckey:	dc.b	"COLOURS",0
+gbc_cckey2:	dc.b	"COLORS",0
+gbc_ccraw:	dc.b	"RAW",0
+gbc_cclcd:	dc.b	"LCD",0
+	even
 	ENDC
 
 	SECTION	gbclbss,BSS
