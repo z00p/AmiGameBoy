@@ -1,6 +1,6 @@
 # AmiGameBoy
 
-**AmiGameBoy 2.1, community version** (18 November 2026). Download: the LhA archive on the [Releases](https://github.com/z00p/AmiGameBoy/releases) page, or Aminet misc/emu/AmiGameBoyCE.lha.
+**AmiGameBoy 2.2, community version** (19 November 2026). Download: the LhA archive on the [Releases](https://github.com/z00p/AmiGameBoy/releases) page, or Aminet misc/emu/AmiGameBoyCE.lha.
 
 AmiGameBoy is a Game Boy and Game Boy Color emulator for AGA Amigas, in
 68020+ assembly. It plays .gb and .gbc cartridges with sound, battery
@@ -66,7 +66,10 @@ Keyboard (always active):
 ```
 
 Joystick in port 2: fire = A, second fire = B. Use the keyboard for the
-other buttons.
+other buttons. With a two-button joystick or pad, set Joy type to
+Standard Joypad in the menu: the second fire can then never be taken
+for CD32 pad buttons. A CD32 pad still works with that setting; if a
+pad adapter loses its buttons with it, pick another Joy type.
 
 CD32 pad in port 2:
 ```
@@ -135,8 +138,9 @@ Red. Save Prefs writes the settings to S:AmiGameBoy.prefs.
 - The link cable, the Game Boy Camera and the Game Boy Printer.
 - Super Game Boy features (borders, palettes).
 - From the original menu, not connected in this version: frozen games
-  (snapshots), cheats, the monitor, and the joystick type setting
-  (keyboard, joystick and CD32 pad are always active).
+  (snapshots), cheats and the monitor. Keyboard, joystick and CD32 pad
+  are always active, whatever the Joy type (Standard Joypad: see the
+  joystick above).
 - AGA: a picture with more than 255 colours at once loses some (rare).
 Cartridge types MBC1, MBC2, MBC3 (with the clock) and MBC5 are handled.
 
@@ -174,6 +178,11 @@ sets the sound at the Game Boy's own balance (quieter than 2.0), runs
 Final Fantasy Legend II and Mega Man V faster on a 68030/50, adds the
 pad test cartridge, removes the light line at the left edge of the AGA
 picture and fixes Dangan GB2's first stage.
+Version 2.2 brings the processor fixes of Wzonka-Lad 1.10 and 1.11 by
+Ville Helin (DAA, the half-carry flags, the stack pointer additions,
+the delay after EI), removes a black band under Mega Man V's sliding
+panel, and stops a two-button pad on Standard Joypad from sending the
+game back to the menu.
 
 ## Source and building
 

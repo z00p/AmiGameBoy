@@ -31,6 +31,11 @@ on. This community version, released with his consent, keeps his menu
 and his AGA display and runs the games on the Game Boy engine of
 Wzonka-Lad by Ville Helin (GPL-2).
 
+2.2   The processor fixes of Wzonka-Lad 1.10 and 1.11 by Ville Helin
+      (DAA, half-carry flags, stack pointer additions, the delay after
+      EI). Fixed: a black band under Mega Man V's sliding panel; a
+      two-button pad on Standard Joypad sending the game back to the
+      menu now and then.
 2.1   Colour games in LCD colours by default ("Colours = Raw" for the
       colours as the game sets them); LCD Colours in the AGA and RTG
       Options menu, Bezel and Scanlines in the RTG one. Sound at the

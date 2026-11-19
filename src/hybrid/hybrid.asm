@@ -480,6 +480,9 @@ hybrid_frame:
 	bra.s	.shown
 .juan:
 	ENDC
+	IFD	HY_WYSTAT		; test: does HY_WYLINE change this picture (wyline.s)
+	jsr	HyWyStat
+	ENDC
 	jsr	HyBuild			; Juan's frame tick: copper, tiles, OBJs, palette
 	IFD	GBC_AGA
 .shown:
@@ -748,10 +751,14 @@ HyCredit:
 ; ---- engine hook at the start of LY 0
 hybrid_line0:
 	movem.l	d0-d7/a0-a6,-(sp)
+	IFD	HY_WYLINE
+	jsr	HyLine0Wy		; the window's start line, then as below (wyline.s)
+	ELSE
 	IFND	NO_LINEPAL
 	jsr	HyLine0Pal		; the palettes at the top of the picture, then
 	ELSE				; ActCopperLine0 (linepal.s)
 	jsr	ActCopperLine0
+	ENDC
 	ENDC
 	IFND	NO_OBJMASK
 	move.b	RRAM+$1f40,HyObj0	; sprites on/off at the top of the picture
@@ -945,6 +952,17 @@ HyResult:
 	move.l	HyIdleSum,d0
 	bsr.s	.hex8
 	ENDC
+	IFD	HY_WYSTAT
+	lea	HyResWy,a0
+	move.l	HyWyDiff,d0
+	bsr.s	.hex8
+	addq.l	#1,a0
+	move.l	HyWyF1,d0
+	bsr.s	.hex8
+	addq.l	#1,a0
+	move.l	HyWyV1,d0
+	bsr.s	.hex8
+	ENDC
 	IFD	HY_WRSTAT		; test: wave restarts (sound.s HyWaveRst)
 	lea	HyResWr,a0
 	lea	HyWrN,a1
@@ -1042,7 +1060,11 @@ HyPatchWrites:
 	ELSE
 	move.l	#hy_w47,$7*4(a1)
 	ENDC
+	IFD	HY_WYLINE
+	move.l	#hy_w4a_wy,$a*4(a1)	; WY: the window's start line first (wyline.s)
+	ELSE
 	move.l	#hy_w4a,$a*4(a1)
+	ENDC
 	move.l	#hy_w4b,$b*4(a1)
 	IFND	NO_SOUND		; sound registers $FF10-$FF26, wave RAM $FF30-$FF3F
 	lea	$ff10*4(a0),a1
@@ -1082,6 +1104,9 @@ HyPatchWrites:
 	ENDC
 	IFND	NO_LINEPAL
 	include	"linepal.s"
+	ENDC
+	IFD	HY_WYLINE		; the window's start line (wyline.s)
+	include	"wyline.s"
 	ENDC
 	IFD	HY_BEZHOOK
 	include	"bezel.s"
@@ -1224,6 +1249,10 @@ HyResBSum:	dc.b	"00000000"
 	IFD	HY_IDLE
 	dc.b	" idle="
 HyResIdle:	dc.b	"00000000"
+	ENDC
+	IFD	HY_WYSTAT
+	dc.b	" wyd="
+HyResWy:	dc.b	"00000000 00000000 00000000"	; frames; the first one; WY, start line there
 	ENDC
 	IFD	HY_WRSTAT		; restarts, colour clocks waited (sum, max), no IR seen
 	dc.b	" wrst="

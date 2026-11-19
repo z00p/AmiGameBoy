@@ -1,5 +1,67 @@
 # Changes
 
+## 2.2
+
+AmiGameBoy 2.2, community version: a Game Boy and Game Boy Color emulator for AGA
+Amigas, on the AGA screen or a graphics board. By Juan Antonio Gómez Gálvez
+(AmiGameBoy: menu and display), Ville Helin (Wzonka-Lad: the Game Boy engine)
+and z00p (community version: sound, Game Boy Color). Also on Aminet:
+misc/emu/AmiGameBoyCE.lha.
+
+**Three programs** (as in 2.1)
+- **AGA**: Game Boy and Game Boy Color on the AGA screen, for fast machines
+  (PiStorm, BigMig, 68060 cards).
+- **AGA 030**: Game Boy only, for an A1200 with a 68030/50.
+- **RTG**: Game Boy and Game Boy Color on a 16-bit Picasso96 screen.
+
+**What is new**
+- **Processor**: the CPU fixes of Wzonka-Lad 1.10 and 1.11 by Ville Helin:
+  DAA, the half-carry flag of ADD HL and CCF, the flags of ADD SP and LD HL,SP+e,
+  and the one-instruction delay after EI. Blargg's cpu_instrs now fails only
+  test 02 (the timer), down from six; Mooneye's daa and rapid_di_ei pass. No
+  speed cost on a 68030/50.
+- **Fixed**: a black band between the stage and Mega Man V's panel while it
+  slides up or down (AGA and AGA 030).
+- **Fixed**: a two-button pad with Joy type set to Standard Joypad could send
+  the game back to the menu now and then (issue #8). With Standard Joypad a
+  CD32 pad read now only counts when the pad identifies itself; CD32 pads keep
+  working with that setting. The other Joy types read the pad as 2.1 did.
+
+**Upgrading from 2.1**: unpack over it. AmiGameBoy.config and the saves are
+kept.
+
+**Requirements**: AGA and AmigaOS 3.0 or later. AGA 030: 68020 or better, a
+68030/50 for full speed. AGA and RTG: a PiStorm-class machine; RTG also needs
+Picasso96 and a 16-bit screen mode. Memory: about twice the cartridge's size
+plus 256 KB.
+
+**Not supported**: cartridges over 2 MB, the link cable, the Game Boy Camera and
+Printer, Super Game Boy features. AGA 030 refuses colour-only cartridges and
+runs dual-mode ones in mono. AGA: more than 255 colours in one picture are
+capped (rare).
+
+**Known issues**: none.
+
+**Tested** on an A1200 with a PiStorm (AGA, AGA 030 and RTG) and in WinUAE
+(68020 and 68030 settings): the Top 50 and Top 30 game sets, the Game Boy test
+ROMs and 12 games compared frame by frame with Mesen.
+
+**Install**: unpack AmiGameBoy-2.2.lha and start AGA, AGA 030 or RTG in the
+AmiGameBoy drawer. ReadMe.txt and AmiGameBoy.guide have the keys, the pad, the
+settings and the saves. No games are included: use cartridge images you may
+legally have.
+
+**Credits**: Juan Antonio Gómez Gálvez (AmiGameBoy: menu and display), Ville
+Helin (Wzonka-Lad: the Game Boy engine, and the 1.10/1.11 CPU fixes in this
+release) and z00p (community version, sound, Game Boy Color); Multivac (icons
+and graphics in Juan's original), Ventzislav Tzvetkov (later small fixes to
+Wzonka-Lad), Afrotechmods / FAmiga (CD32 pad read).
+
+**Problems**: please open an issue with the game, the program (AGA, AGA 030 or
+RTG), your machine and what you saw.
+
+SHA-256 of AmiGameBoy-2.2.lha: dbcfb030792dd67d61ad8305e04c259d0ee5f68647c03ac304f2724bb751a959
+
 ## 2.1
 
 AmiGameBoy 2.1, community version: a Game Boy and Game Boy Color emulator for AGA

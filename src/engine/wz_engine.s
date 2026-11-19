@@ -3,6 +3,59 @@
 ; Ventzislav Tzvetkov 2003-2004. Changes for AmiGameBoy (C) 2026, same licence;
 ; see git history. Original file: wz.s (extract, line ranges noted below)
 
+; AmiGameBoy: CPU fixes that follow Ville Helin's Wzonka-Lad 1.10/1.11 (github.com/vhelin/
+; wzonka-lad, 2026), each behind its own switch; WZ_SYNC111 turns on the ones listed here.
+; z80_full_III.s has them; docs/wzsync-log.md has the list and the tests. Off: the build is
+; byte-identical to the one before.
+		IFD	WZ_SYNC111
+		IFND	WZ_DAA
+WZ_DAA		equ	1			;DAA from A, N, H, C; Z set, H cleared
+		ENDC
+		IFND	WZ_HFLAGS
+WZ_HFLAGS	equ	1			;H of ADD HL,rr and CCF
+		ENDC
+		IFND	WZ_SPFLAGS
+WZ_SPFLAGS	equ	1			;C, H, Z, N of ADD SP,e and LD HL,SP+e
+		ENDC
+		IFND	WZ_EIDELAY
+WZ_EIDELAY	equ	1			;DI cancels EI; EI;RETI / EI;HALT one interrupt
+		ENDC
+		IFND	WZ_HALT
+WZ_HALT		equ	1			;halt bug at a sweep end; EI;HALT back to HALT
+		ENDC
+		ENDC
+; Not in WZ_SYNC111 (yet): WZ_OAMBUG (the DMG OAM corruption only in mode 2, by row).
+		IFD	WZ_HALT
+WZ_EIHALTX	equ	1			;(z80_full_III.s: WZ_HALT or WZ_EIDELAY)
+		ELSE
+		IFD	WZ_EIDELAY
+WZ_EIHALTX	equ	1
+		ENDC
+		ENDC
+		IFD	WZ_EIHALTX
+WZ_ANY		equ	1			;(slot checks)
+		ENDC
+		IFD	WZ_DAA
+		IFND	WZ_ANY
+WZ_ANY		equ	1
+		ENDC
+		ENDC
+		IFD	WZ_HFLAGS
+		IFND	WZ_ANY
+WZ_ANY		equ	1
+		ENDC
+		ENDC
+		IFD	WZ_SPFLAGS
+		IFND	WZ_ANY
+WZ_ANY		equ	1
+		ENDC
+		ENDC
+		IFD	WZ_OAMBUG
+		IFND	WZ_ANY
+WZ_ANY		equ	1
+		ENDC
+		ENDC
+
 		IFND	NO_IDLESKIP			;AmiGameBoy: the poll-loop skip's cheaper hook
 		IFND	SPIKE_TRACE			;(idle_jr, idle_go; z80_full_III.s JR cc).
 		IFND	NO_IDLEQUICK

@@ -59,6 +59,18 @@ HyCD32Kit:
 	addq.l	#1,HyCD32St+12
 .noid:
 	ENDC
+	IFD	HY_JOYPAD2		; "Standard Joypad" in the menu: only a read with a CD32 pad's ID
+	IFD	HY_MENU			; (bit 7 = 0, bit 8 = 1) counts. A 2-button pad's fire 2 is on
+	cmp.b	#3,DirPrefs+$08		; pin 9, the line the buttons shift in on: pressed or let go
+	bne.s	.anyid			; mid-read, the bits split (shoulders, play pressed: the quit
+	move.w	d0,d1			; combo, issue #8), and either way bit 7 = 1 or bit 8 = 0.
+	and.w	#$180,d1		; A CD32 pad sends its ID every read and keeps its buttons.
+	cmp.w	#$100,d1		; JoyType: 0 Amiga JoyStick, 1 Keyboard Only, 2 CD32 Joypad,
+	beq.s	.anyid			; 3 Standard Joypad; the first three as 2.1 (no ID check:
+	moveq	#0,d0			; not every adapter sends it)
+.anyid:
+	ENDC
+	ENDC
 	and.l	#$7f,d0			; the seven buttons (the ID bits dropped)
 	cmp.b	#$7f,d0			; all seven at once: a plain joystick
 	bne.s	.ok

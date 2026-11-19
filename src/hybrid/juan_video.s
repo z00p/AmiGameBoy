@@ -487,13 +487,21 @@ AcCoCon1:
 	BTST	#5,RRAM+$1F40	; ¿Win ON?
 	BEQ.S	AcCoCon3
 	MOVEQ	#0,D1
-	MOVE.B	RRAM+$1F4A,D1
+	IFD	HY_WYLINE		; hybrid: the line the window really starts on this
+	MOVE.B	HyWyTrig,D1		; frame (wyline.s), not WY at its end: a WY written
+	ELSE				; for the next frame (Mega Man V's sliding panel) cut
+	MOVE.B	RRAM+$1F4A,D1		; the BG short of the window, a black band
+	ENDC
 	CMP.B	#$91,D1
 	BCC.S	AcCoCon3
 	OR.B	#$02,(TabRasCMDS.L,D1.W)
 	MOVE.L	TabRasDATA+0,(TabRasDATA.L,D1.W*8)
 	IFND	NO_BGXWY		; hybrid: window Y for the BG clip on this line too
+	IFD	HY_WYLINE
+	MOVE.B	HyWyTrig,(TabRasDATA+4.L,D1.W*8)
+	ELSE
 	MOVE.B	RRAM+$1F4A,(TabRasDATA+4.L,D1.W*8)
+	ENDC
 	ENDC
 AcCoCon3:
 ; ----------------------------------<=

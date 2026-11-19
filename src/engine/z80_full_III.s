@@ -124,7 +124,51 @@ daa_execute_nor:compute_h
 ;		d6	= h ($10/0).
 ;---------------------------------------------------------------------------------------
 
-daa_flags_x:	lsr.b	#2,d6					;h00.
+daa_flags_x:
+		IFD	WZ_DAA
+; AmiGameBoy WZ_DAA: DAA as the CPU does it, from A, N, H and C: after an add, +$06 when H or
+; the low digit is over 9, +$60 (and C = 1) when C or A over $99; after a subtract, -$06 when
+; H, -$60 when C (C kept). Z from the result, H = 0, N kept. Wzonka's eight-way table missed
+; cases (an add with H and a low digit over 3, ...) and left Z as it was. Follows Ville
+; Helin's Wzonka-Lad 1.10/1.11.
+; Same room as the old code (32 bytes, the cnop, 546 bytes): everything after keeps its place.
+		bra.s	daa_wz
+		dcb.b	32-(*-daa_flags_x),0
+		cnop	0,16
+daa_wz:		clr.l	h_other_I				;h = 0!
+		moveq.l	#0,d7					;the adjustment.
+		btst	#8,d3					;n?
+		bne.s	daa_wz_sub
+		tst.b	d6					;h?
+		bne.s	daa_wz_06
+		move.b	d3,d6
+		and.b	#$f,d6
+		cmp.b	#9,d6					;low digit over 9?
+		bls.s	daa_wz_c
+daa_wz_06:	moveq.l	#6,d7
+daa_wz_c:	btst	#0,d4					;c?
+		bne.s	daa_wz_60
+		cmp.b	#$99,d3					;a over $99?
+		bls.s	daa_wz_add
+daa_wz_60:	or.b	#$60,d7
+		bset	#0,d4					;c = 1!
+daa_wz_add:	add.b	d7,d3
+		bra.s	daa_wz_z
+daa_wz_sub:	tst.b	d6					;h?
+		beq.s	daa_wz_subc
+		moveq.l	#6,d7
+daa_wz_subc:	btst	#0,d4					;c? (kept)
+		beq.s	daa_wz_subx
+		or.b	#$60,d7
+daa_wz_subx:	sub.b	d7,d3
+daa_wz_z:	and.b	#%11111011,d4				;z = 0.
+		tst.b	d3
+		bne.s	daa_wz_go
+		or.b	#%100,d4				;z = 1.
+daa_wz_go:	fetch_next_i
+		dcb.b	546-(*-daa_wz),0
+		ELSE
+		lsr.b	#2,d6					;h00.
 		move.b	d4,d7
 		lsl.b	#1,d7
 		and.b	#%10,d7
@@ -135,7 +179,7 @@ daa_flags_x:	lsr.b	#2,d6					;h00.
 		or.b	d3,d6					;hcn.
 		rol.w	#8,d3
 		jmp	([a6,d6.l*4])
-
+daa_wz_pre:
 		cnop	0,16
 daa_jumps:	dc.l	daa_000
 		dc.l	daa_0n0
@@ -331,6 +375,13 @@ daa_hn0:	move.b	d3,d6
 		and.b	#%11111110,d4				;c = 0!
 
 daa_exit_007:	fetch_next_i
+		ENDC
+daa_wz_end:
+		IFND	WZ_DAA
+		IFNE	(daa_wz_pre-daa_flags_x-32)|(daa_wz_end-daa_jumps-546)
+		fail	"WZ_DAA: the old DAA code is no longer 32 + cnop + 546 bytes"
+		ENDC
+		ENDC
 
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
 ;		trash the oam ram according to the hardware bug
@@ -341,6 +392,10 @@ trash_oam_ram:
 		tst.b	gbc_mode
 		bne.s	trash_oam_ram_x
 		ENDC
+		IFD	WZ_OAMBUG
+		bra.l	wz_oam_write			;AmiGameBoy WZ_OAMBUG: see wz_oam_row.
+		dcb.b	12,0				;(the old code's room)
+		ELSE
 		move.l	a2,a6
 		add.l	#$FE08,a6
 		moveq.l	#38/2-1,d7
@@ -349,6 +404,7 @@ trash_oam_ram_loop:
 		clr.l	(a6)+
 		clr.l	(a6)+
 		dbra	d7,trash_oam_ram_loop
+		ENDC
 trash_oam_ram_x:
 		rts
 
@@ -682,6 +738,22 @@ z80_optc_CB08:	ror.w	#8,d1					;b down.
 z80_optcode_09:	and.b	#%11111110,d4				;c = 0.
 		subq.l	#2,a5					;less cycles.
 
+		IFD	WZ_HFLAGS
+; AmiGameBoy WZ_HFLAGS: H is the carry out of bit 11 (Wzonka set it from bit 11 of both
+; operands, as a deferred flag on stale 8-bit operands). Follows Ville Helin's
+; Wzonka-Lad 1.10/1.11.
+		move.w	d2,d6					;old hl.
+		add.w	d1,d2
+		move.w	CCR,d7					;status updated.
+		and.w	#$ff,d3					;n = 0!
+		and.b	#%1,d7					;save carry.
+		or.b	d7,d4					;return the rest (z).
+		eor.w	d2,d6
+		eor.w	d1,d6					;bit 12: the carry out of bit 11.
+		rol.w	#4,d6
+		and.b	#1,d6
+		move.b	d6,h_the_flag				;h = that carry.
+		ELSE
 		move.w	d1,d6
 		move.w	d2,d7
 		and.w	#%100000000000,d6
@@ -696,6 +768,7 @@ z80_optcode_09:	and.b	#%11111110,d4				;c = 0.
 		and.w	#$ff,d3					;n = 0!
 		and.b	#%1,d7					;save carry.
 		or.b	d7,d4					;return the rest (z).
+		ENDC
 
 		fetch_next_i
 		cnop	0,128
@@ -1221,6 +1294,22 @@ z80_optc_CB18:	subq.l	#2,a5					;less cycles.
 z80_optcode_19:	subq.l	#2,a5					;less cycles.
 		and.b	#%11111110,d4				;save z.
 
+		IFD	WZ_HFLAGS
+; AmiGameBoy WZ_HFLAGS: H is the carry out of bit 11 (Wzonka set it from bit 11 of both
+; operands, as a deferred flag on stale 8-bit operands). Follows Ville Helin's
+; Wzonka-Lad 1.10/1.11.
+		move.w	d2,d6					;old hl.
+		add.w	d0,d2
+		move.w	CCR,d7					;status updated.
+		and.w	#$ff,d3					;n = 0!
+		and.b	#%1,d7					;save carry.
+		or.b	d7,d4					;return the rest (z).
+		eor.w	d2,d6
+		eor.w	d0,d6					;bit 12: the carry out of bit 11.
+		rol.w	#4,d6
+		and.b	#1,d6
+		move.b	d6,h_the_flag				;h = that carry.
+		ELSE
 		move.w	d0,d6
 		move.w	d2,d7
 		and.w	#%100000000000,d6
@@ -1235,6 +1324,7 @@ z80_optcode_19:	subq.l	#2,a5					;less cycles.
 		and.w	#$ff,d3					;n = 0!
 		and.b	#%1,d7					;save c.
 		or.b	d7,d4					;return z.
+		ENDC
 
 		fetch_next_i
 		cnop	0,128
@@ -1874,7 +1964,13 @@ z80_optcode_29:	subq.l	#2,a5					;less cycles.
 		move.w	d2,d7
 		and.w	#%100000000000,d7
 		lsr.w	#8,d7
+		IFD	WZ_HFLAGS
+; AmiGameBoy WZ_HFLAGS: H = bit 11 of HL, the carry out of bit 11 of HL + HL, as a literal
+; flag (Wzonka stored it as a deferred one). Follows Ville Helin's Wzonka-Lad 1.10/1.11.
+		lsr.b	#3,d7
+		ELSE
 		lsr.b	#2,d7
+		ENDC
 		move.b	d7,h_the_flag				;h from bit 11.
 
 		add.w	d2,d2					;hl = hl + hl.
@@ -1905,6 +2001,24 @@ z80_optc_CB29:	subq.l	#2,a5					;less cycles.
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
 
 z80_optcode_2A:	subq.l	#2,a5					;less cycles.
+		IFD	WZ_OAMBUG
+; AmiGameBoy WZ_OAMBUG: the read first, then the OAM corruption of a read with the inc/dec
+; (wz_oam_read). Follows Ville Helin's Wzonka-Lad 1.10/1.11.
+		tst.w	d2					;rom read?
+		blt.s	wz_2A_ram				;nope. from ram!
+		move.b	(a3,d2.l),d3
+		addq.w	#1,d2					;ldi a, (hl).
+		fetch_next_i
+		cnop	0,4
+wz_2A_ram:	GBC_RD	d2,d3				;ram read.
+		cmp.w	#$FE00,d2
+		blo.s	wz_2A_x
+		cmp.w	#$FEFF,d2
+		bhi.s	wz_2A_x
+		bsr.l	wz_oam_read
+wz_2A_x:	addq.w	#1,d2					;ldi a, (hl).
+		fetch_next_i
+		ELSE
 
 		cmp.l	#$FE00,d2
 		blt.s	z80_optcode_2A_ok
@@ -1927,6 +2041,7 @@ read_d2_to_d3a1:	GBC_RD	d2,d3				;ram read.
 		addq.w	#1,d2					;ldi a, (hl).
 
 		fetch_next_i
+		ENDC
 		cnop	0,128
 
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
@@ -2508,6 +2623,22 @@ z80_optc_CB38:	ror.w	#8,d1
 z80_optcode_39:	subq.l	#2,a5					;less cycles.
 		and.b	#%11111110,d4				;save z.
 
+		IFD	WZ_HFLAGS
+; AmiGameBoy WZ_HFLAGS: H is the carry out of bit 11 (Wzonka set it from bit 11 of both
+; operands, as a deferred flag on stale 8-bit operands). Follows Ville Helin's
+; Wzonka-Lad 1.10/1.11.
+		move.w	d2,d6					;old hl.
+		add.w	d5,d2
+		move.w	CCR,d7					;status updated.
+		and.w	#$ff,d3					;n = 0!
+		and.b	#%1,d7					;save carry.
+		or.b	d7,d4					;return the rest (z).
+		eor.w	d2,d6
+		eor.w	d5,d6					;bit 12: the carry out of bit 11.
+		rol.w	#4,d6
+		and.b	#1,d6
+		move.b	d6,h_the_flag				;h = that carry.
+		ELSE
 		move.w	d5,d6
 		move.w	d2,d7
 		and.w	#%100000000000,d6
@@ -2522,6 +2653,7 @@ z80_optcode_39:	subq.l	#2,a5					;less cycles.
 		and.b	#%1,d7					;save carry.
 		and.w	#$ff,d3					;n = 0!
 		or.b	d7,d4					;return z.
+		ENDC
 
 		fetch_next_i
 		cnop	0,128
@@ -2545,6 +2677,24 @@ z80_optc_CB39:	subq.l	#2,a5					;less cycles.
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
 
 z80_optcode_3A:	subq.l	#2,a5					;less cycles.
+		IFD	WZ_OAMBUG
+; AmiGameBoy WZ_OAMBUG: the read first, then the OAM corruption of a read with the inc/dec
+; (wz_oam_read). Follows Ville Helin's Wzonka-Lad 1.10/1.11.
+		tst.w	d2					;rom read?
+		blt.s	wz_3A_ram				;nope. from ram!
+		move.b	(a3,d2.l),d3
+		subq.w	#1,d2					;ldd a, (hl).
+		fetch_next_i
+		cnop	0,4
+wz_3A_ram:	GBC_RD	d2,d3				;ram read.
+		cmp.w	#$FE00,d2
+		blo.s	wz_3A_x
+		cmp.w	#$FEFF,d2
+		bhi.s	wz_3A_x
+		bsr.l	wz_oam_read
+wz_3A_x:	subq.w	#1,d2					;ldd a, (hl).
+		fetch_next_i
+		ELSE
 
 		cmp.l	#$FE00,d2
 		blt.s	z80_optcode_3A_ok
@@ -2567,6 +2717,7 @@ read_d2_to_d3a2:	GBC_RD	d2,d3				;ram read.
 		subq.w	#1,d2					;ldd a, (hl).
 
 		fetch_next_i
+		ENDC
 		cnop	0,128
 
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
@@ -2710,9 +2861,15 @@ z80_optc_CB3E:	subq.l	#4,a5
 
 z80_optcode_3F:	subq.l	#1,a5					;less cycles.
 		bchg	#0,d4					;complement carry flag.
+		IFD	WZ_HFLAGS
+; AmiGameBoy WZ_HFLAGS: CCF clears H (Wzonka set it from bit 0 of A). Follows Ville Helin's
+; Wzonka-Lad 1.10/1.11.
+		clr.l	h_other_I				;h = 0!
+		ELSE
 		move.b	d3,d7
 		and.b	#%1,d7
 		move.b	d7,h_the_flag				;h = 0/1 (~random).
+		ENDC
 
 		and.w	#$ff,d3					;n = 0!
 
@@ -4297,6 +4454,27 @@ z80_optcode_76:	subq.l	#1,a5
 		and.b	$ff(a6),d6				;(Wzonka halted to the next
 		and.b	#%11111,d6				;sweep boundary).
 		beq.s	z80_optcode_76_halt
+		IFD	WZ_EIHALTX				;(WZ_HALT or WZ_EIDELAY)
+		tst.b	z80_ei_return				;EI;HALT?
+		beq.s	z80_optcode_76_irq
+		IFD	WZ_HALT
+; AmiGameBoy WZ_HALT: EI;HALT with an interrupt pending: IME is still 0 at the HALT (the halt
+; bug), the interrupt is taken and returns to the HALT, which then halts. Wzonka returned past
+; it. Follows Ville Helin's Wzonka-Lad 1.10/1.11.
+		subq.l	#1,a0					;return to the HALT.
+		ENDC
+		IFD	WZ_EIDELAY
+; AmiGameBoy WZ_EIDELAY: one dispatch here ends the EI window (see DI).
+		clr.b	z80_ei_return
+		IFND	NO_LINE114
+		subq.l	#1,a5					;(as ei_loop: this instruction charged)
+		adda.l	z80_cycles_left,a5
+		ELSE
+		move.l	z80_cycles_left,a5
+		ENDC
+		ENDC
+z80_optcode_76_irq:
+		ENDC
 		bra.l	reti_back
 z80_optcode_76_halt:
 		ENDC
@@ -4316,8 +4494,14 @@ z80_optcode_76_skip:
 		rts
 z80_optcode_76_bug:
 		ENDC
+		IFND	WZ_HALT
 		move.l	a5,d6					;test cycles left.
 		ble.s	f_xit_xit
+		ENDC
+; AmiGameBoy WZ_HALT: the halt bug (IME=0, an interrupt pending: the next byte is read twice)
+; also when the HALT used the sweep's last cycle; Wzonka returned there and lost the re-read.
+; The instruction runs now; its overshoot goes to the next sweep as for any instruction.
+; Follows Ville Helin's Wzonka-Lad 1.10/1.11 (there a flag carries it over the sweep end).
 
 		IFGT	GAMEBOY_DEBUG
 		jmp	debug_output
@@ -7286,6 +7470,21 @@ z80_optcode_D9:	subq.l	#2,a5					;less cycles.
 		subq.l	#2,a5					;AmiGameBoy: RETI is 4.
 		ENDC
 		clr.b	i_flag					;enable interrupts.
+		IFD	WZ_EIDELAY
+; AmiGameBoy WZ_EIDELAY: EI;RETI: RETI dispatches what is pending; the EI window ends here,
+; so the main loop does not dispatch a second interrupt behind it (IME is 0 again by then).
+; Follows Ville Helin's Wzonka-Lad 1.10/1.11.
+		tst.b	z80_ei_return
+		beq.s	z80_optcode_D9_x
+		clr.b	z80_ei_return
+		IFND	NO_LINE114
+		subq.l	#1,a5					;(as ei_loop: this instruction charged)
+		adda.l	z80_cycles_left,a5
+		ELSE
+		move.l	z80_cycles_left,a5
+		ENDC
+z80_optcode_D9_x:
+		ENDC
 
 		READW_D5_TO_D7
 		addq.w	#2,d5
@@ -7741,13 +7940,35 @@ z80_optc_CBE7:	subq.l	#2,a5					;less cycles.
 ;		E8 - ADD SP, x - [n = 0, h = x, c = x, z = 0]
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
 
-z80_optcode_E8:	move.b	(a0)+,d7				;no h emulation
+z80_optcode_E8:
+		IFD	WZ_SPFLAGS
+; AmiGameBoy WZ_SPFLAGS: C and H from the unsigned add of e to the low byte of SP (carry out
+; of bits 7 and 3), Z = N = 0. Wzonka took C from the signed 16-bit add and had no H.
+; Follows Ville Helin's Wzonka-Lad 1.10/1.11.
+		subq.l	#4,a5
+		move.b	(a0)+,d6				;e.
+		move.w	d5,d7
+		add.b	d6,d7					;c out of bit 7.
+		move.w	CCR,d4
+		and.b	#%1,d4					;z = 0.
+		ext.w	d6
+		move.w	d5,d7
+		add.w	d6,d5					;sp = sp + e.
+		eor.w	d5,d7
+		eor.w	d6,d7					;bit 4: the carry out of bit 3.
+		lsr.b	#4,d7
+		and.b	#1,d7
+		move.b	d7,h_the_flag
+		and.w	#$ff,d3					;n = 0.
+		ELSE
+		move.b	(a0)+,d7				;no h emulation
 		ext.w	d7					;for this optcode.
 		subq.l	#4,a5
 		add.w	d7,d5
 		move.w	CCR,d4
 		and.w	#$ff,d3					;n = 0.
 		and.b	#%1,d4
+		ENDC
 
 		fetch_next_i
 		cnop	0,128
@@ -8023,6 +8244,22 @@ z80_optc_CBF2:	subq.l	#2,a5					;less cycles.
 
 z80_optcode_F3:	subq.l	#1,a5					;less cycles.
 		move.b	#1,i_flag				;no interrupts.
+		IFD	WZ_EIDELAY
+; AmiGameBoy WZ_EIDELAY: EI takes effect after the next instruction, so EI;DI lets no
+; interrupt in. Wzonka set IME at the EI and let the main loop dispatch after the next
+; instruction whatever it was. Here DI ends that window at once (the cycles as ei_loop
+; counts them). Follows Ville Helin's Wzonka-Lad 1.10/1.11.
+		tst.b	z80_ei_return				;right after EI?
+		beq.s	z80_optcode_F3_x
+		clr.b	z80_ei_return
+		IFND	NO_LINE114
+		subq.l	#1,a5					;(as ei_loop: this instruction charged)
+		adda.l	z80_cycles_left,a5
+		ELSE
+		move.l	z80_cycles_left,a5
+		ENDC
+z80_optcode_F3_x:
+		ENDC
 
 		fetch_next_i
 		cnop	0,128
@@ -8164,13 +8401,36 @@ z80_optc_CBF7:	subq.l	#2,a5					;less cycles.
 ;		F8 - LD HL, SP+x - [n = 0, h = x, c = x, z = 0]
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
 
-z80_optcode_F8:	move.w	d5,d2					;no h emulation
+z80_optcode_F8:
+		IFD	WZ_SPFLAGS
+; AmiGameBoy WZ_SPFLAGS: C and H from the unsigned add of e to the low byte of SP (carry out
+; of bits 7 and 3), Z = N = 0. Wzonka took C from the signed 16-bit add and had no H.
+; Follows Ville Helin's Wzonka-Lad 1.10/1.11.
+		subq.l	#3,a5
+		move.b	(a0)+,d6				;e.
+		move.w	d5,d7
+		add.b	d6,d7					;c out of bit 7.
+		move.w	CCR,d4
+		and.b	#%1,d4					;z = 0.
+		ext.w	d6
+		move.w	d5,d2
+		add.w	d6,d2					;hl = sp + e.
+		move.w	d2,d7
+		eor.w	d5,d7
+		eor.w	d6,d7					;bit 4: the carry out of bit 3.
+		lsr.b	#4,d7
+		and.b	#1,d7
+		move.b	d7,h_the_flag
+		and.w	#$ff,d3					;n = 0.
+		ELSE
+		move.w	d5,d2					;no h emulation
 		move.b	(a0)+,d7				;for this optcode. ;(
 		ext.w	d7
 		add.w	d7,d2
 		move.w	CCR,d4
 		subq.l	#3,a5					;?
 		and.b	#%1,d4
+		ENDC
 
 		fetch_next_i
 		cnop	0,128
@@ -8362,4 +8622,158 @@ z80_optc_CBFF:	subq.l	#2,a5					;less cycles.
 idl_tail:
 		include	"idle_skip.s"
 idl_tend:	dcb.b	(256-((idl_tend-idl_tail)&255))&255,0	;a multiple of 256: what follows keeps its place too.
+		ENDC
+
+; ---- AmiGameBoy WZ_OAMBUG: the DMG's OAM corruption, as Ville Helin's Wzonka-Lad 1.10/1.11 (his
+; GAMEBOY_OAM_BUG model, there off by default). Wzonka cleared OAM $FE08-$FE9F on every INC/DEC rr
+; and LD (HL+/-) with the register in $FE00-$FEFF, whatever the PPU was doing: a game writing OAM
+; with LD (HL+),A in VBlank lost every object but the first two. The hardware corrupts only while
+; the PPU scans OAM (LCD on, LY < 144, STAT mode 2), and only the row the scan is on (8 bytes,
+; 20 rows in the 20 M-cycles of mode 2; row 0 never), with the patterns below (Pan Docs, "OAM
+; Corruption Bug"). Here mode 2 is the line's first sweep, which starts the line: the M-cycle the
+; instruction ends on is z80_cycles + 1 - a5 (sweeps 0-3 run z80_cycles + 1, the overshoot of
+; the sweep before carried in), and the inc/dec is the one before that.
+		IFD	WZ_OAMBUG
+		cnop	0,4
+wz_oam_blk:
+wz_oam_write:	bsr.w	wz_oam_row			;inc/dec, or a write with one.
+		beq.s	wz_oam_rts
+		bsr.w	wz_oam_wpat
+wz_oam_rts:	rts
+
+wz_oam_read:
+		IFD	HY_GBC
+		tst.b	gbc_mode			;(the CGB has no OAM bug)
+		bne.s	wz_oam_rts
+		ENDC
+		bsr.w	wz_oam_row			;ld a,(hl+/-).
+		beq.s	wz_oam_rts
+		cmp.b	#4,d7				;rows 1-3: read pattern only.
+		blt.s	wz_oam_ronly
+		cmp.b	#19,d7				;last row: read pattern only.
+		bge.s	wz_oam_ronly
+		bsr.w	wz_oam_rinc
+wz_oam_ronly:	bra.w	wz_oam_rpat
+
+;		d7 = row, a6 = that row; z = 1: leave OAM alone.
+wz_oam_row:	move.l	a2,a6
+		add.l	#$FF00,a6
+		btst.b	#7,$40(a6)			;lcd on?
+		beq.s	wz_oam_no
+		cmp.b	#143,$44(a6)			;ly: vblank is mode 1.
+		bhi.s	wz_oam_no
+		move.b	$41(a6),d6
+		and.b	#%11,d6
+		cmp.b	#2,d6				;oam scan?
+		bne.s	wz_oam_no
+		move.l	z80_cycles,d7
+		sub.l	a5,d7				;+1 (sweep) -1 (the inc/dec before the end).
+		IFD	NO_LINE114
+		subq.l	#1,d7				;(no +1 on the sweeps)
+		ENDC
+		ble.s	wz_oam_no			;row 0, or not yet.
+		cmp.l	#20,d7
+		bge.s	wz_oam_no			;20 rows, then mode 3.
+		move.l	d7,d6
+		lsl.l	#3,d6
+		move.l	a2,a6
+		add.l	#$FE00,a6
+		add.l	d6,a6				;a6 = scanned row.
+		tst.l	d7
+		rts
+wz_oam_no:	moveq.l	#0,d7
+		rts
+
+;		((a ^ c) & (b ^ c)) ^ c: a = first word, b = the row before's first word,
+;		c = its third word; then the row before's last three words.
+wz_oam_wpat:	move.w	(a6),d6				;a.
+		move.w	-4(a6),d7			;c.
+		eor.w	d7,d6				;a ^ c.
+		move.w	d6,-(SP)
+		move.w	-8(a6),d6
+		eor.w	d7,d6				;b ^ c.
+		and.w	(SP)+,d6
+		eor.w	d7,d6				;^ c.
+		move.w	d6,(a6)
+		move.w	-6(a6),2(a6)
+		move.w	-4(a6),4(a6)
+		move.w	-2(a6),6(a6)
+		rts
+
+;		b | (a & c), then the same three words.
+wz_oam_rpat:	move.w	(a6),d6				;a.
+		and.w	-4(a6),d6			;& c.
+		or.w	-8(a6),d6			;| b.
+		move.w	d6,(a6)
+		move.w	-6(a6),2(a6)
+		move.w	-4(a6),4(a6)
+		move.w	-2(a6),6(a6)
+		rts
+
+;		read and inc/dec in one M-cycle, rows 4-18: (b & (a | c | d)) | (a & c & d) into the
+;		row before, which is then copied onto this row and the row two back. a = first word
+;		two rows back, b = the row before's first word, c = this row's first, d = the row
+;		before's third.
+wz_oam_rinc:	move.w	-16(a6),d6			;a.
+		or.w	(a6),d6				;| c.
+		or.w	-4(a6),d6			;| d.
+		and.w	-8(a6),d6			;& b.
+		move.w	-16(a6),d7			;a.
+		and.w	(a6),d7				;& c.
+		and.w	-4(a6),d7			;& d.
+		or.w	d7,d6
+		move.w	d6,-8(a6)
+		move.l	-8(a6),(a6)
+		move.l	-4(a6),4(a6)
+		move.l	-8(a6),-16(a6)
+		move.l	-4(a6),-12(a6)
+		moveq.l	#0,d7				;(d7's upper word for the fetch)
+		rts
+wz_oam_end:	dcb.b	(256-((wz_oam_end-wz_oam_blk)&255))&255,0	;a multiple of 256: what follows keeps its place.
+		ENDC
+
+; AmiGameBoy WZ_*: the handlers these switches change must stay in their 128-byte slots.
+		IFD	WZ_ANY
+		IFNE	(z80_optcode_2A-z80_jump_table-$2A00)|(z80_optc_CB2A-z80_jump_table-$2A80)
+		fail	"WZ: handler 2A is over its 128 bytes"
+		ENDC
+		IFNE	(z80_optcode_3A-z80_jump_table-$3A00)|(z80_optc_CB3A-z80_jump_table-$3A80)
+		fail	"WZ: handler 3A is over its 128 bytes"
+		ENDC
+		IFNE	(z80_optcode_2B-z80_jump_table-$2B00)|(z80_optc_CB2B-z80_jump_table-$2B80)
+		fail	"WZ: handler 2B is over its 128 bytes"
+		ENDC
+		IFNE	(z80_optcode_3B-z80_jump_table-$3B00)|(z80_optc_CB3B-z80_jump_table-$3B80)
+		fail	"WZ: handler 3B is over its 128 bytes"
+		ENDC
+		IFNE	(z80_optcode_09-z80_jump_table-$0900)|(z80_optc_CB09-z80_jump_table-$0980)
+		fail	"WZ: handler 09 is over its 128 bytes"
+		ENDC
+		IFNE	(z80_optcode_19-z80_jump_table-$1900)|(z80_optc_CB19-z80_jump_table-$1980)
+		fail	"WZ: handler 19 is over its 128 bytes"
+		ENDC
+		IFNE	(z80_optcode_29-z80_jump_table-$2900)|(z80_optc_CB29-z80_jump_table-$2980)
+		fail	"WZ: handler 29 is over its 128 bytes"
+		ENDC
+		IFNE	(z80_optcode_39-z80_jump_table-$3900)|(z80_optc_CB39-z80_jump_table-$3980)
+		fail	"WZ: handler 39 is over its 128 bytes"
+		ENDC
+		IFNE	(z80_optcode_3F-z80_jump_table-$3F00)|(z80_optc_CB3F-z80_jump_table-$3F80)
+		fail	"WZ: handler 3F is over its 128 bytes"
+		ENDC
+		IFNE	(z80_optcode_76-z80_jump_table-$7600)|(z80_optc_CB76-z80_jump_table-$7680)
+		fail	"WZ: handler 76 is over its 128 bytes"
+		ENDC
+		IFNE	(z80_optcode_D9-z80_jump_table-$D900)|(z80_optc_CBD9-z80_jump_table-$D980)
+		fail	"WZ: handler D9 is over its 128 bytes"
+		ENDC
+		IFNE	(z80_optcode_E8-z80_jump_table-$E800)|(z80_optc_CBE8-z80_jump_table-$E880)
+		fail	"WZ: handler E8 is over its 128 bytes"
+		ENDC
+		IFNE	(z80_optcode_F3-z80_jump_table-$F300)|(z80_optc_CBF3-z80_jump_table-$F380)
+		fail	"WZ: handler F3 is over its 128 bytes"
+		ENDC
+		IFNE	(z80_optcode_F8-z80_jump_table-$F800)|(z80_optc_CBF8-z80_jump_table-$F880)
+		fail	"WZ: handler F8 is over its 128 bytes"
+		ENDC
 		ENDC
