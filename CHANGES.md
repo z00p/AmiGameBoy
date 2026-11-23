@@ -1,5 +1,75 @@
 # Changes
 
+## 2.3
+
+AmiGameBoy 2.3, community version: a Game Boy and Game Boy Color emulator for AGA
+Amigas, on the AGA screen or a graphics board. By Juan Antonio Gómez Gálvez
+(AmiGameBoy: menu and display), Ville Helin (Wzonka-Lad: the Game Boy engine)
+and z00p (community version: sound, Game Boy Color, Super Game Boy). Also on
+Aminet: misc/emu/AmiGameBoyCE.lha.
+
+**Three programs** (as in 2.2)
+- **AGA**: Game Boy and Game Boy Color on the AGA screen, for fast machines
+  (PiStorm, BigMig, 68060 cards).
+- **AGA 030**: Game Boy only, for an A1200 with a 68030/50.
+- **RTG**: Game Boy and Game Boy Color on a 16-bit Picasso96 screen, now with
+  the Super Game Boy.
+
+**What is new**
+- **Super Game Boy** (RTG only): cartridges made for the Super Game Boy show
+  its colours and its border. The whole border is on the screen; the game is
+  drawn a size smaller where it would not fit. The border takes the place of
+  the screen surround.
+- **Options menu**: a "Super Game Boy" tick (ticked = Auto, the default;
+  unticked = Off, the plain Game Boy look). It writes
+  "Super Game Boy = Auto|Off" in AmiGameBoy.config and counts from the next
+  Power ON.
+- **Game Boy and Game Boy Color cartridges** with Super Game Boy extras run as
+  a real Super Game Boy runs them: in mono, with its colours and border. Untick
+  Super Game Boy to play them as a Game Boy Color game.
+- **AGA and AGA 030**: unchanged from 2.2 apart from the version text.
+
+**Upgrading from 2.2**: unpack over it. AmiGameBoy.config and the saves are
+kept. A 2.2 file has no Super Game Boy line, so Auto; the menu tick adds it.
+
+**Requirements**: AGA and AmigaOS 3.0 or later. AGA 030: 68020 or better, a
+68030/50 for full speed. AGA and RTG: a PiStorm-class machine; RTG also needs
+Picasso96 and a 16-bit screen mode. Memory: about twice the cartridge's size
+plus 256 KB; the RTG program about 100 KB more than in 2.2.
+
+**Not supported**: cartridges over 2 MB, the link cable, the Game Boy Camera and
+Printer. The Super Game Boy's own sound. AGA 030 refuses colour-only cartridges
+and runs dual-mode ones in mono. AGA: more than 255 colours in one picture are
+capped (rare).
+
+**Known issues**
+- GB Corp (homebrew) shows a white screen with Super Game Boy on. Untick it to
+  play.
+- Two-player Super Game Boy games read player 2 as nothing pressed.
+
+**Tested** on an A1200 with a PiStorm (RTG): our own Super Game Boy test
+cartridge, Wario Land II, the Options menu tick. In WinUAE (RTG): the test
+cartridge (27 scenes, every picture as modelled from the Pan Docs description),
+Pokémon Red and Yellow, Donkey Kong '94, Kirby's Dream Land 2, Mole Mania,
+Link's Awakening DX, Tetris DX and Sam Mallard; Mole Mania with the option off;
+Game Boy Color games. Super Game Boy off costs no measurable speed.
+
+**Install**: unpack AmiGameBoy-2.3.lha and start AGA, AGA 030 or RTG in the
+AmiGameBoy drawer. ReadMe.txt and AmiGameBoy.guide have the keys, the pad, the
+settings and the saves. No games are included: use cartridge images you may
+legally have.
+
+**Credits**: Juan Antonio Gómez Gálvez (AmiGameBoy: menu and display), Ville
+Helin (Wzonka-Lad: the Game Boy engine) and z00p (community version, sound,
+Game Boy Color, Super Game Boy); Multivac (icons and graphics in Juan's
+original), Ventzislav Tzvetkov (later small fixes to Wzonka-Lad),
+Afrotechmods / FAmiga (CD32 pad read).
+
+**Problems**: please open an issue with the game, the program (AGA, AGA 030 or
+RTG), your machine and what you saw.
+
+SHA-256 of AmiGameBoy-2.3.lha: 79617eb7510bbc4aca2610f18d88dc3617fc96368d4f4a5a3bff96c207236587
+
 ## 2.2
 
 AmiGameBoy 2.2, community version: a Game Boy and Game Boy Color emulator for AGA
