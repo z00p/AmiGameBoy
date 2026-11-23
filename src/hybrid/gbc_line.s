@@ -371,6 +371,12 @@ gbc_frame_end:
 	ELSE
 	tst.b	gbc_drawn
 	bne.s	.x
+	IFD	SGB_COL			; Super Game Boy: the LCD off freezes the picture, a mask holds it
+	tst.b	sgb_col
+	bne.s	.x
+	tst.b	sgb_mask
+	bne.s	.x
+	ENDC
 	movem.l	d0-d1/a0,-(sp)
 	move.l	#$ffffffff,d0		; white: 5-6-5 all ones
 	btst	#1,gbc_pixfmt
@@ -667,6 +673,13 @@ gbc_line:
 	lea	gbc_fb,a1
 	add.l	d0,a1
 	lea	gbc_lbuf+GBC_LB,a0
+	IFD	SGB_COL			; Super Game Boy: block palettes, mask (sgb.s)
+	tst.b	sgb_on
+	beq.s	.nsgb
+	jsr	sgb_conv
+	bra.s	.cvdone
+.nsgb:
+	ENDC
 	lea	gbc_rgb,a2
 	moveq	#160/8-1,d1
 	moveq	#0,d0
@@ -675,6 +688,9 @@ gbc_line:
 	move.w	(a2,d0.w*2),(a1)+
 	ENDR
 	dbra	d1,.cv
+	IFD	SGB_COL
+.cvdone:
+	ENDC
 	ENDC
 	movem.l	(sp)+,d0-d7/a0-a6
 	rts
@@ -771,6 +787,9 @@ gbc_dmgrgb:
 	bsr.s	.four
 	move.b	gbc_dmgreg+2,d3		; (36-39 follow)
 	bsr.s	.four
+	IFD	SGB_COL			; Super Game Boy: the block palettes through these (sgb.s)
+	jsr	sgb_mklut
+	ENDC
 	movem.l	(sp)+,d0-d7/a0-a1
 	rts
 .four:	moveq	#4-1,d4			; colours 0-3 of the register in d3

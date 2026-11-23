@@ -4663,6 +4663,14 @@ MainMenuNewMenu68:
     DC.W    $0009
     DC.L    0,0
 	ENDC
+	IFD	SGB_MENU		; AmiGameBoy 2.3, RTG: Super Game Boy (hybrid/rmenu.s)
+MainMenuNewMenu69:
+    DC.B    2,0
+    DC.L    sgb_rmname
+    DC.L    0
+    DC.W    $0009
+    DC.L    0,0
+	ENDC
 
     DC.B    0,0
     DC.L    0,0

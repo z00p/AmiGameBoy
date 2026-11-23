@@ -363,6 +363,10 @@ HyMenuEmul:
 	jsr	gbc_aga_init
 	ENDC
 	ENDC
+	IFD	SGB_PKT			; Super Game Boy carts (sgb.s), as the option is now
+	move.l	gb_mem_jumps,a0
+	jsr	sgb_install
+	ENDC
 	IFND	NO_SOUND
 	clr.b	snd_quality
 	ELSE
@@ -465,6 +469,9 @@ HyMenuLeave:
 	bne.s	.nopic
 	IFD	GBC_RENDER
 	jsr	GbcFbSave
+	ENDC
+	IFD	SGB_DUMP
+	jsr	sgb_dump
 	ENDC
 	jsr	HyResult
 .nopic:
@@ -705,6 +712,10 @@ tHyErrType:	dc.b	4,"Unknown cartridge type",0,"Not supported yet",0
 	IFD	GBC_RTG
 tHyErrRtg:	dc.b	4,"No RTG screen",0,"Needs a 16-bit Picasso96 mode",0
 	ENDC
+	IFD	HY_REL23		; the 2.3 release (with HY_REL20 to HY_REL22)
+HyAb0:		dc.b	"AmiGameBoy 2.3 community version",0
+HyAb1:		dc.b	"(24 November 2026)",0
+	ELSE
 	IFD	HY_REL22		; the 2.2 release (with HY_REL20 and HY_REL21)
 HyAb0:		dc.b	"AmiGameBoy 2.2 community version",0
 HyAb1:		dc.b	"(19 November 2026)",0
@@ -722,6 +733,7 @@ HyAb1:		dc.b	"(14 November 2026)",0
 	ENDC
 	ENDC
 	ENDC
+	ENDC
 HyAb2:		dc.b	"Menu and display:",0
 HyAb4:		dc.b	"Game Boy engine (Wzonka-Lad):",0
 	IFD	HY_CREDVH		; Wzonka-Lad is Ville Helin's (GitHub issue #7)
@@ -732,6 +744,13 @@ HyAb5:		dc.b	"Ville Helin, Ventzislav Tzvetkov",0
 HyAb6:		dc.b	"Icons and Graphics: Multivac",0
 HyAb7:		dc.b	"Community version: z00p",0
 HyAb8:		dc.b	"GNU GPL v2, no warranty",0
+	IFD	HY_REL23
+HyWTitle:	dc.b	"AmiGameBoy 2.3",0
+HySTitle:	dc.b	"AmiGameBoy 2.3"
+	IFND	HY_CREDZ		; (the three authors need the room)
+		dc.b	" community version"
+	ENDC
+	ELSE
 	IFD	HY_REL22
 HyWTitle:	dc.b	"AmiGameBoy 2.2",0
 HySTitle:	dc.b	"AmiGameBoy 2.2"
@@ -752,6 +771,7 @@ HySTitle:	dc.b	"AmiGameBoy 2.0 community version"
 	ELSE
 HyWTitle:	dc.b	"AmiGameBoy 1.0",0
 HySTitle:	dc.b	"AmiGameBoy 1.0 community version"
+	ENDC
 	ENDC
 	ENDC
 	ENDC

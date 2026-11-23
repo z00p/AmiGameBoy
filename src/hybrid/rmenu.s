@@ -29,6 +29,9 @@ RM_CCITEM	=RM_ITEM+2		; LCD Colours, after Scanlines
 RM_CCITEM	=RM_ITEM		; LCD Colours, after its line
 	ENDC
 	ENDC
+	IFD	SGB_MENU
+RM_SGBITEM	=RM_CCITEM+1		; Super Game Boy, after LCD Colours (sgb.s)
+	ENDC
 ResetMenuStrip	=-702
 ClearMenuStripI	=-54
 
@@ -51,6 +54,11 @@ gbc_rmsync:
 	IFD	GBC_CCMENU
 	moveq	#RM_CCITEM,d0
 	move.b	gbc_ccon,d3
+	bsr.s	.tick
+	ENDC
+	IFD	SGB_MENU
+	moveq	#RM_SGBITEM,d0
+	move.b	sgb_opt,d3
 	bsr.s	.tick
 	ENDC
 	move.l	d2,a0
@@ -124,7 +132,27 @@ gbc_rmcc:
 	rts
 	ENDC
 
-; the line "<a3> = On|Off" (d7.b 1|0; GBC_CCMENU: 3|2 = LCD|Raw) into PROGDIR:AmiGameBoy.config
+	IFD	SGB_MENU
+; the Super Game Boy tick: Auto (ticked) or Off for the next Power On, "Super Game Boy = Auto|Off"
+gbc_rmsgb:
+	movem.l	d0-d7/a0-a6,-(sp)
+	move.l	_IntuitionBase,a6
+	moveq	#RM_SGBITEM,d0
+	bsr.w	gbc_rmitem		; (MENUTOGGLE has turned its tick over)
+	beq.s	.x
+	btst	#0,12(a0)
+	sne	d7
+	neg.b	d7			; 1 Auto, 0 Off
+	move.b	d7,sgb_opt
+	lea	sgb_rmname,a3
+	addq.b	#4,d7			; "Auto" / "Off"
+	bsr.w	gbc_rmsave
+.x:	movem.l	(sp)+,d0-d7/a0-a6
+	rts
+	ENDC
+
+; the line "<a3> = On|Off" (d7.b 1|0; GBC_CCMENU: 3|2 = LCD|Raw; SGB_MENU: 5|4 = Auto|Off) into
+; PROGDIR:AmiGameBoy.config
 gbc_rmsave:
 	sub.l	a1,a1
 	move.l	4.w,a6
@@ -240,6 +268,16 @@ gbc_rmsave:
 	move.l	(sp)+,$b8(a5)
 	rts
 .value:
+	IFD	SGB_MENU
+	cmp.b	#4,d7
+	bcs.s	.vs
+	lea	sgb_rmauto,a5
+	cmp.b	#5,d7
+	beq.s	.v1
+	lea	gbc_rmoff,a5
+	bra.s	.v1
+.vs:
+	ENDC
 	IFD	GBC_CCMENU
 	cmp.b	#2,d7
 	bcs.s	.v0
@@ -318,6 +356,10 @@ gbc_rmtext2:	dc.b	"LCD Colours",0	; the menu item
 gbc_rmname2:	dc.b	"Colours",0	; the config's word
 gbc_rmlcd:	dc.b	" LCD",0
 gbc_rmraw:	dc.b	" Raw",0
+	ENDC
+	IFD	SGB_MENU
+sgb_rmname:	dc.b	"Super Game Boy",0	; the menu item and the config's words
+sgb_rmauto:	dc.b	" Auto",0
 	ENDC
 gbc_rmon:	dc.b	" On",0
 gbc_rmoff:	dc.b	" Off",0

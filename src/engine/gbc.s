@@ -47,6 +47,17 @@ gbc_install:
 	ELSE
 	beq.w	.x
 	ENDC
+	IFD	SGB_DUAL		; a cart for both models ($80) that asks for a Super Game Boy runs in DMG
+	btst	#6,$143(a1)		; mode with it, as on a real Super Game Boy (option Auto only;
+	bne.s	.cgb			; $C0 = Colour only, always CGB)
+	cmp.b	#3,$146(a1)
+	bne.s	.cgb
+	cmp.b	#$33,$14b(a1)
+	bne.s	.cgb
+	tst.b	sgb_opt
+	bne.w	gbc_dmginst
+.cgb:
+	ENDC
 	ENDC
 	st	gbc_mode
 	move.l	a0,a1
@@ -126,6 +137,12 @@ gbc_start:
 .x:	rts
 	IFD	GBC_DMG
 gbc_dmgstart:				; mono: the logo z80_start left in VRAM, to bank 0
+	IFD	SGB_PKT			; a Super Game Boy cart: C = $14 at the hand-over, as the
+	tst.b	sgb_on			; Super Game Boy leaves it (Pan Docs)
+	beq.s	.nsgb
+	move.b	#$14,d1
+.nsgb:
+	ENDC
 	movem.l	d0/a0-a1,-(sp)
 	move.l	gb_memory,a0
 	add.l	#$8000,a0

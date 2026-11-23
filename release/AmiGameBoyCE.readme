@@ -1,6 +1,6 @@
 Short:        Game Boy + Color emulator, AGA and RTG
 Author:       Juan Antonio Gomez Galvez, Ville Helin, z00p
-Uploader:     Zoopster (JCEC_1@yahoo.co.uk)
+Uploader:     z00p
 Type:         misc/emu
 Version:      @VERSION@
 Replaces:     misc/emu/AmiGameBoyCE.lha
@@ -21,7 +21,8 @@ There are three programs:
             machines (PiStorm, BigMig, 68060 cards).
   AGA 030   Game Boy only, for an A1200 with a 68030/50.
   RTG       Game Boy and Game Boy Color on a 16-bit Picasso96 screen,
-            with a screen surround.
+            with a screen surround, and the Super Game Boy's colours
+            and borders for cartridges made for it.
 
 History
 -------
@@ -31,6 +32,11 @@ on. This community version, released with his consent, keeps his menu
 and his AGA display and runs the games on the Game Boy engine of
 Wzonka-Lad by Ville Helin (GPL-2).
 
+2.3   Super Game Boy in the RTG program: the colours and the whole
+      border of cartridges made for it; a tick in the Options menu
+      ("Super Game Boy = Auto|Off" in AmiGameBoy.config). Cartridges
+      for both Game Boy and Game Boy Color with Super Game Boy extras
+      run as on a Super Game Boy (untick for Game Boy Color mode).
 2.2   The processor fixes of Wzonka-Lad 1.10 and 1.11 by Ville Helin
       (DAA, half-carry flags, stack pointer additions, the delay after
       EI). Fixed: a black band under Mega Man V's sliding panel; a
@@ -80,15 +86,16 @@ may legally have.
 
 Not supported
 -------------
-Cartridges over 2 MB, the link cable, the Game Boy Camera and Printer,
-Super Game Boy features. AGA 030 refuses colour-only cartridges and runs
-dual-mode ones in mono.
+Cartridges over 2 MB, the link cable, the Game Boy Camera and Printer.
+Super Game Boy: RTG only, without its own sound; player 2 in its
+two-player games reads as nothing pressed. AGA 030 refuses colour-only
+cartridges and runs dual-mode ones in mono.
 
 Credits
 -------
 - Juan Antonio Gomez Galvez: AmiGameBoy, the menu and the display.
 - Ville Helin: Wzonka-Lad, the Game Boy engine.
-- z00p: the community version, sound, Game Boy Color.
+- z00p: the community version, sound, Game Boy Color, Super Game Boy.
 - Multivac: icons and graphics in Juan's original.
 - Ventzislav Tzvetkov: later small fixes to Wzonka-Lad.
 - Afrotechmods / FAmiga: the CD32 pad read.

@@ -1,0 +1,1401 @@
+; AmiGameBoy: Super Game Boy support (RTG program only; 2.3 candidate, docs/sgb-plan.md).
+; Copyright (C) 2026 AmiGameBoy contributors. GPL-2 (see src/engine/COPYING).
+;
+; A cartridge whose header asks for the Super Game Boy ($146 = 3, $14B = $33) gets it when the
+; option is Auto (the default; "Super Game Boy = Auto|Off" in AmiGameBoy.config, the Options
+; menu tick). Taken at Power On; nothing of it exists for other carts or with Off. Reference:
+; Pan Docs, "Super Game Boy" chapters (packets, palettes, attributes, VRAM transfers, borders).
+;
+; SGB_PKT  sgb_install hooks the P1 ($FF00) write: command packets (a reset pulse, then 16 bytes
+;          a packet, LSB first, P14 low = 0, P15 low = 1, a 0 stop bit; up to 7 packets),
+;          MLT_REQ with the joypad ID in P1's low bits while both lines are high (the next pad
+;          when P15 goes low to high), C = $14 at the hand-over (a Super Game Boy), PAL01/23/03/12,
+;          ATTR_BLK/LIN/DIV/CHR, ATTR_SET, PAL_SET, MASK_EN, ICON_EN (bit 2: no more packets),
+;          PAL_TRN and ATTR_TRN (4 KB from the screen: the 256 tiles the BG map shows from its
+;          top left, through BGP, at the end of the second frame after the command with the LCD
+;          on). SOUND, SOU_TRN, DATA_SND, DATA_TRN, JUMP, OBJ_TRN, PAL_PRI, ATRC_EN, TEST_EN are
+;          taken and ignored (no SNES sound or code).
+; SGB_COL  mono carts: each 8x8 block of the screen through one of four palettes of four
+;          colours (sgb_attr, 20 x 18), objects too; colour 0 is one colour for all (the
+;          backdrop). Until the game sends colours the four palettes are the menu's shades.
+;          MASK_EN: 1 freeze, 2 black, 3 colour 0. The LCD off freezes the picture (as the SGB
+;          does) instead of the white of a Game Boy. Carts that run as Game Boy Color (.gbc,
+;          header $80/$C0) get no Super Game Boy at all: a GBC answers no MLT_REQ, and a dual
+;          cart told otherwise can hang (GB Corp: a white screen).
+; SGB_BORD CHR_TRN (tiles $00-$7F / $80-$FF, 4bpp) and PCT_TRN (32 x 28 map, palettes 4-6): the
+;          256 x 224 border, the game in the middle at its own scale, drawn into both buffers
+;          when it arrives (in the bezel's place, cut to the screen) and at each screen open;
+;          again when the backdrop colour changes. Colour 0 of the border is the backdrop.
+; SGB_BFIT with a border, the picture at the scale at which the whole border fits the screen
+;          (2x on 640x480 and 960x540) instead of the game's own (the border cut to the screen).
+; SGB_OPT  the option (config line); SGB_MENU the Options menu tick (rmenu.s).
+; SGB_DUMP (test) the state to GB:AmiGB.sgb at AutoExit (tools/sgb_check.py).
+
+	SECTION	sgbcode,CODE
+
+; ---- Power On (after gbc_install): a0 = gb_mem_jumps, cartridge = the ROM. Keeps every register.
+sgb_install:
+	movem.l	d0-d1/a0-a1,-(sp)
+	lea	sgb_dstart,a1
+	move.w	#sgb_dend-sgb_dstart-1,d0
+.c:	clr.b	(a1)+
+	dbra	d0,.c
+	lea	sgb_cnt,a1
+	moveq	#32-1,d0
+.cc:	clr.l	(a1)+
+	dbra	d0,.cc
+	lea	sgb_pal,a1		; a grey ramp until the game or the menu's shades set them
+	moveq	#4-1,d0
+.gp:	move.l	#$7fff5294,(a1)+
+	move.l	#$294a0000,(a1)+
+	dbra	d0,.gp
+	move.b	#$30,sgb_p1		; the lines start high: the first reset pulse counts
+	st	sgb_rdy
+	tst.b	sgb_opt			; "Super Game Boy = Off": nothing
+	beq.s	.x
+	move.l	cartridge,a1
+	cmp.b	#3,$146(a1)		; the header asks for it
+	bne.s	.x
+	cmp.b	#$33,$14b(a1)
+	bne.s	.x
+	tst.b	gbc_mode		; running as Game Boy Color: no Super Game Boy (a GBC never has
+	bne.s	.x			; one; GB Corp, told it has, stays white, 23 Nov 2026)
+	st	sgb_on
+	IFD	SGB_COL
+	st	sgb_col			; mono: the block palettes
+	ENDC
+	add.l	#$ff00*4,a0		; P1 writes come here first
+	move.l	#sgb_w00,(a0)
+	st	gbc_paldirty
+.x:	movem.l	(sp)+,d0-d1/a0-a1
+	rts
+
+; ---- P1 write: d6.b = value, d7.l = address, a2 = memory; only d6/a6 free (write handler).
+	cnop	0,4
+sgb_w00:
+	movem.l	d0-d2/a0,-(sp)
+	move.b	d6,d0
+	move.b	sgb_p1,d1		; the last value written
+	move.b	d0,sgb_p1
+	tst.b	sgb_mlt			; more than one pad: P15 low -> high selects the next
+	beq.s	.nomlt
+	btst	#5,d1
+	bne.s	.nomlt
+	btst	#5,d0
+	beq.s	.nomlt
+	move.b	sgb_player,d2
+	addq.b	#1,d2
+	and.b	sgb_mlt,d2
+	move.b	d2,sgb_player
+.nomlt:	tst.b	sgb_dis			; ICON_EN bit 2: no more packets
+	bne.w	.done
+	lsr.b	#4,d0
+	and.w	#3,d0
+	beq.w	.reset			; P14 and P15 low: reset pulse
+	cmp.b	#3,d0
+	beq.w	.high			; both high: ready for the next pulse
+	tst.b	sgb_rdy
+	beq.w	.done
+	tst.b	sgb_inpk
+	beq.w	.done
+	clr.b	sgb_rdy
+	tst.b	sgb_stopw
+	bne.s	.stop
+	move.w	sgb_bitn,d1		; a data bit: 1 = P15 low (d0 = 1), 0 = P14 low (d0 = 2)
+	cmp.b	#1,d0
+	bne.s	.zero
+	move.w	d1,d2
+	lsr.w	#3,d2
+	lea	sgb_buf,a0
+	moveq	#7,d0
+	and.w	d1,d0
+	bset	d0,(a0,d2.w)
+.zero:	addq.w	#1,d1
+	move.w	d1,sgb_bitn
+	and.w	#127,d1
+	bne.s	.done
+	st	sgb_stopw		; 128 bits in: the stop bit next
+	bra.s	.done
+.stop:	clr.b	sgb_stopw
+	cmp.b	#2,d0			; the stop bit is a 0
+	bne.s	.abort
+	clr.b	sgb_inpk
+	moveq	#7,d1			; packets in the command (header bits 0-2, 0 = 1)
+	and.b	sgb_buf,d1
+	bne.s	.len
+	moveq	#1,d1
+.len:	move.w	sgb_bitn,d2
+	lsr.w	#7,d2
+	cmp.w	d1,d2
+	bcs.s	.done			; more packets to come
+	bsr.w	sgb_cmd
+.abort:	clr.b	sgb_inpk
+	bsr.w	sgb_clrbuf
+	bra.s	.done
+.high:	st	sgb_rdy
+	bra.s	.done
+.reset:	tst.b	sgb_rdy
+	beq.s	.done
+	clr.b	sgb_rdy
+	st	sgb_inpk
+	move.w	sgb_bitn,d1		; between two packets of a command: go on with it
+	beq.s	.done
+	and.w	#127,d1
+	bne.s	.new
+	tst.b	sgb_stopw
+	beq.s	.done
+.new:	bsr.w	sgb_clrbuf		; else a new command
+.done:	movem.l	(sp)+,d0-d2/a0
+	jsr	do_joystick		; P1 as ever (z80_misc.s)
+	tst.b	sgb_mlt
+	beq.s	.x
+	move.b	sgb_p1,d6
+	and.b	#$30,d6
+	cmp.b	#$30,d6
+	bne.s	.pad
+	move.b	sgb_player,d6		; both lines high: the pad's ID, $F player 1 .. $C player 4
+	sub.b	d6,(a2,d7.l)
+.x:	rts
+.pad:	tst.b	sgb_player		; the other players' pads: nothing pressed
+	beq.s	.x
+	or.b	#$0f,(a2,d7.l)
+	rts
+
+sgb_clrbuf:
+	move.l	a0,-(sp)
+	lea	sgb_buf,a0
+	REPT	112/4
+	clr.l	(a0)+
+	ENDR
+	clr.w	sgb_bitn
+	clr.b	sgb_stopw
+	move.l	(sp)+,a0
+	rts
+
+; ---- a whole command in sgb_buf. Keeps every register.
+sgb_cmd:
+	movem.l	d0-d7/a0-a4,-(sp)
+	moveq	#0,d1
+	move.b	sgb_buf,d1
+	lsr.b	#3,d1			; the command
+	lea	sgb_cnt,a0
+	addq.l	#1,(a0,d1.w*4)
+	lea	sgb_buf,a0
+	cmp.w	#3,d1
+	bls.w	sgb_c_pal
+	cmp.w	#4,d1
+	beq.w	sgb_c_blk
+	cmp.w	#5,d1
+	beq.w	sgb_c_lin
+	cmp.w	#6,d1
+	beq.w	sgb_c_div
+	cmp.w	#7,d1
+	beq.w	sgb_c_chr
+	cmp.w	#$0a,d1
+	beq.w	sgb_c_pset
+	cmp.w	#$0e,d1
+	beq.s	sgb_cicon
+	cmp.w	#$11,d1
+	beq.s	sgb_cmlt
+	cmp.w	#$16,d1
+	beq.s	sgb_caset
+	cmp.w	#$17,d1
+	beq.s	sgb_cmask
+	cmp.w	#$0b,d1			; PAL_TRN
+	beq.s	sgb_ctrn
+	cmp.w	#$15,d1			; ATTR_TRN
+	beq.s	sgb_ctrn
+	IFD	SGB_BORD
+	cmp.w	#$13,d1			; CHR_TRN
+	beq.s	sgb_ctrn
+	cmp.w	#$14,d1			; PCT_TRN
+	beq.s	sgb_ctrn
+	ENDC
+sgb_cmdx:
+	movem.l	(sp)+,d0-d7/a0-a4
+	rts
+sgb_ctrn:	move.b	d1,sgb_trn		; from the screen, two frames on (sgb_frame)
+	move.b	1(a0),sgb_trnarg
+	move.b	#2,sgb_trnw
+	bra.s	sgb_cmdx
+sgb_cicon:	btst	#2,1(a0)
+	beq.s	sgb_cmdx
+	st	sgb_dis
+	bra.s	sgb_cmdx
+sgb_cmlt:	moveq	#3,d0			; 0 one pad, 1 two, 3 four (2: one)
+	and.b	1(a0),d0
+	cmp.b	#2,d0
+	bne.s	.m1
+	moveq	#0,d0
+.m1:	move.b	d0,sgb_mlt
+	and.b	d0,sgb_player
+	bra.s	sgb_cmdx
+sgb_caset:	moveq	#$3f,d0
+	and.b	1(a0),d0
+	bsr.w	sgb_atfset
+	btst	#6,1(a0)
+	beq.s	sgb_cmdx
+	clr.b	sgb_mask
+	bra.s	sgb_cmdx
+sgb_cmask:	moveq	#3,d0
+	and.b	1(a0),d0
+	move.b	d0,sgb_mask
+	bra.s	sgb_cmdx
+
+; little-endian word at \1(a0) -> d0.w
+SGB_RW	MACRO
+	move.b	\1+1(a0),d0
+	lsl.w	#8,d0
+	move.b	\1(a0),d0
+	and.w	#$7fff,d0
+	ENDM
+
+; PAL01, PAL23, PAL03, PAL12 (d1 = 0-3): colour 0 for all four, colours 1-3 of two palettes
+sgb_c_pal:
+	lea	.pairs(pc),a1
+	moveq	#0,d2
+	move.b	(a1,d1.w*2),d2
+	moveq	#0,d3
+	move.b	1(a1,d1.w*2),d3
+	lea	sgb_pal,a1
+	SGB_RW	1
+	move.w	d0,(a1)
+	move.w	d0,8(a1)
+	move.w	d0,16(a1)
+	move.w	d0,24(a1)
+	lsl.w	#3,d2
+	lea	2(a1,d2.w),a2
+	SGB_RW	3
+	move.w	d0,(a2)+
+	SGB_RW	5
+	move.w	d0,(a2)+
+	SGB_RW	7
+	move.w	d0,(a2)+
+	lsl.w	#3,d3
+	lea	2(a1,d3.w),a2
+	SGB_RW	9
+	move.w	d0,(a2)+
+	SGB_RW	11
+	move.w	d0,(a2)+
+	SGB_RW	13
+	move.w	d0,(a2)+
+	bsr.w	sgb_newpal
+	bra.w	sgb_cmdx
+.pairs:	dc.b	0,1,2,3,0,3,1,2
+
+; PAL_SET: four system palettes (PAL_TRN) by number, then maybe an ATF and the mask cancelled
+sgb_c_pset:
+	lea	sgb_pal,a1
+	moveq	#1,d2			; offset of the first number
+	moveq	#4-1,d3
+.p:	move.b	1(a0,d2.w),d0
+	lsl.w	#8,d0
+	move.b	(a0,d2.w),d0
+	and.w	#$1ff,d0
+	lea	sgb_sys,a2
+	lsl.w	#3,d0
+	add.w	d0,a2
+	moveq	#4-1,d4
+.w:	move.b	1(a2),d0
+	lsl.w	#8,d0
+	move.b	(a2),d0
+	and.w	#$7fff,d0
+	move.w	d0,(a1)+
+	addq.l	#2,a2
+	dbra	d4,.w
+	addq.w	#2,d2
+	dbra	d3,.p
+	lea	sgb_pal,a1		; colour 0: palette 0's, for all
+	move.w	(a1),d0
+	move.w	d0,8(a1)
+	move.w	d0,16(a1)
+	move.w	d0,24(a1)
+	bsr.w	sgb_newpal
+	move.b	9(a0),d1
+	bpl.s	.na
+	moveq	#$3f,d0
+	and.b	d1,d0
+	bsr.w	sgb_atfset
+.na:	btst	#6,d1
+	beq.w	sgb_cmdx
+	clr.b	sgb_mask
+	bra.w	sgb_cmdx
+
+; ATTR_BLK: up to 18 rectangles, each with inside / surrounding line / outside palettes
+sgb_c_blk:
+	moveq	#0,d7
+	move.b	1(a0),d7
+	beq.w	sgb_cmdx
+	cmp.w	#18,d7
+	bls.s	.n
+	moveq	#18,d7
+.n:	addq.l	#2,a0
+	subq.w	#1,d7
+.set:	moveq	#7,d0
+	and.b	(a0),d0			; d0 = which parts
+	move.b	1(a0),d1
+	moveq	#3,d4
+	and.b	d1,d4			; inside
+	move.b	d1,d5
+	lsr.b	#2,d5
+	and.b	#3,d5			; line
+	move.b	d1,d6
+	lsr.b	#4,d6
+	and.b	#3,d6			; outside
+	cmp.b	#1,d0			; only inside or only outside: the line goes with it
+	bne.s	.o1
+	moveq	#3,d0
+	move.b	d4,d5
+.o1:	cmp.b	#4,d0
+	bne.s	.o2
+	moveq	#6,d0
+	move.b	d6,d5
+.o2:	lea	sgb_attr,a1
+	moveq	#0,d3			; y
+.y:	moveq	#0,d2			; x
+.x:	cmp.b	3(a0),d3
+	bcs.s	.out
+	cmp.b	5(a0),d3
+	bhi.s	.out
+	cmp.b	2(a0),d2
+	bcs.s	.out
+	cmp.b	4(a0),d2
+	bhi.s	.out
+	cmp.b	3(a0),d3		; inside the rectangle: its inside or its line
+	bls.s	.line
+	cmp.b	5(a0),d3
+	bcc.s	.line
+	cmp.b	2(a0),d2
+	bls.s	.line
+	cmp.b	4(a0),d2
+	bcc.s	.line
+	btst	#0,d0
+	beq.s	.nx
+	move.b	d4,(a1)
+	bra.s	.nx
+.line:	btst	#1,d0
+	beq.s	.nx
+	move.b	d5,(a1)
+	bra.s	.nx
+.out:	btst	#2,d0
+	beq.s	.nx
+	move.b	d6,(a1)
+.nx:	addq.l	#1,a1
+	addq.b	#1,d2
+	cmp.b	#20,d2
+	bne.s	.x
+	addq.b	#1,d3
+	cmp.b	#18,d3
+	bne.s	.y
+	addq.l	#6,a0
+	dbra	d7,.set
+	bra.w	sgb_cmdx
+
+; ATTR_LIN: whole rows (bit 7 set) or columns, one byte each
+sgb_c_lin:
+	moveq	#0,d7
+	move.b	1(a0),d7
+	beq.w	sgb_cmdx
+	cmp.w	#110,d7
+	bls.s	.n
+	moveq	#110,d7
+.n:	addq.l	#2,a0
+	subq.w	#1,d7
+.l:	move.b	(a0)+,d0
+	moveq	#31,d1
+	and.b	d0,d1			; the line
+	move.b	d0,d2
+	lsr.b	#5,d2
+	and.b	#3,d2			; its palette
+	lea	sgb_attr,a1
+	tst.b	d0
+	bpl.s	.v
+	cmp.w	#18,d1			; a row
+	bcc.s	.nx
+	mulu.w	#20,d1
+	add.w	d1,a1
+	moveq	#20-1,d3
+.h:	move.b	d2,(a1)+
+	dbra	d3,.h
+	bra.s	.nx
+.v:	cmp.w	#20,d1			; a column
+	bcc.s	.nx
+	add.w	d1,a1
+	moveq	#18-1,d3
+.vc:	move.b	d2,(a1)
+	lea	20(a1),a1
+	dbra	d3,.vc
+.nx:	dbra	d7,.l
+	bra.w	sgb_cmdx
+
+; ATTR_DIV: two halves and the line between, across (bit 6 set: by Y) or down (by X)
+sgb_c_div:
+	move.b	1(a0),d0
+	moveq	#3,d4
+	and.b	d0,d4			; below / right
+	move.b	d0,d5
+	lsr.b	#2,d5
+	and.b	#3,d5			; above / left
+	move.b	d0,d6
+	lsr.b	#4,d6
+	and.b	#3,d6			; the line
+	move.b	2(a0),d7		; where
+	lea	sgb_attr,a1
+	moveq	#0,d3			; y
+.y:	moveq	#0,d2			; x
+.x:	move.b	d2,d1
+	btst	#6,d0
+	beq.s	.byx
+	move.b	d3,d1
+.byx:	cmp.b	d7,d1
+	bcs.s	.a
+	beq.s	.l
+	move.b	d4,(a1)+
+	bra.s	.nx
+.a:	move.b	d5,(a1)+
+	bra.s	.nx
+.l:	move.b	d6,(a1)+
+.nx:	addq.b	#1,d2
+	cmp.b	#20,d2
+	bne.s	.x
+	addq.b	#1,d3
+	cmp.b	#18,d3
+	bne.s	.y
+	bra.w	sgb_cmdx
+
+; ATTR_CHR: from (X, Y), n blocks of 2 bits (first in the top bits), left to right or top to bottom
+sgb_c_chr:
+	moveq	#0,d2
+	move.b	1(a0),d2		; x
+	moveq	#0,d3
+	move.b	2(a0),d3		; y
+	move.b	4(a0),d7
+	lsl.w	#8,d7
+	move.b	3(a0),d7		; n
+	cmp.w	#360,d7
+	bls.s	.n
+	move.w	#360,d7
+.n:	move.b	5(a0),d6		; style
+	lea	6(a0),a2
+	moveq	#0,d5			; bits left in d4
+	bra.s	.go
+.l:	cmp.w	#20,d2
+	bcc.w	sgb_cmdx
+	cmp.w	#18,d3
+	bcc.w	sgb_cmdx
+	tst.w	d5
+	bne.s	.have
+	move.b	(a2)+,d4
+	moveq	#4,d5
+.have:	rol.b	#2,d4
+	moveq	#3,d0
+	and.b	d4,d0
+	subq.w	#1,d5
+	move.w	d3,d1
+	mulu.w	#20,d1
+	add.w	d2,d1
+	lea	sgb_attr,a1
+	move.b	d0,(a1,d1.w)
+	tst.b	d6
+	bne.s	.tb
+	addq.w	#1,d2			; left to right, then the next row
+	cmp.w	#20,d2
+	bne.s	.go
+	moveq	#0,d2
+	addq.w	#1,d3
+	bra.s	.go
+.tb:	addq.w	#1,d3			; top to bottom, then the next column
+	cmp.w	#18,d3
+	bne.s	.go
+	moveq	#0,d3
+	addq.w	#1,d2
+.go:	dbra	d7,.l
+	bra.w	sgb_cmdx
+
+; ---- ATF d0.b (0-$2C) into sgb_attr: 90 bytes, 5 a row, 4 blocks a byte, the first in the top
+; bits. Keeps every register.
+sgb_atfset:
+	cmp.b	#$2c,d0
+	bhi.s	.x
+	movem.l	d0-d3/a0-a1,-(sp)
+	and.w	#$3f,d0
+	mulu.w	#90,d0
+	lea	sgb_atf,a0
+	add.w	d0,a0
+	lea	sgb_attr,a1
+	move.w	#90-1,d2
+.b:	move.b	(a0)+,d1
+	moveq	#4-1,d3
+.p:	rol.b	#2,d1
+	moveq	#3,d0
+	and.b	d1,d0
+	move.b	d0,(a1)+
+	dbra	d3,.p
+	dbra	d2,.b
+	movem.l	(sp)+,d0-d3/a0-a1
+.x:	rts
+
+; new colours: made again before the next line is drawn (gbc_dmgrgb -> sgb_mklut)
+sgb_newpal:
+	st	sgb_gotpal
+	st	gbc_paldirty
+	rts
+
+; ---- each Game Boy frame (hybrid_frame, LY 144): a pending VRAM transfer, the border.
+sgb_frame:
+	IFD	SGB_SNAP		; test: the state every SGB_SNAP frames, kept for the exit
+	jsr	sgb_snap
+	ENDC
+	tst.b	sgb_on
+	beq.w	.x
+	movem.l	d0-d7/a0-a6,-(sp)
+	tst.b	sgb_trn
+	beq.s	.bd
+	move.l	gb_memory,a0
+	add.l	#$ff40,a0
+	tst.b	(a0)			; the LCD on: a frame the Super Game Boy sees
+	bpl.s	.bd
+	subq.b	#1,sgb_trnw
+	bne.s	.bd
+	bsr.w	sgb_vget
+	move.b	sgb_trn,d0
+	clr.b	sgb_trn
+	lea	sgb_sys,a1
+	cmp.b	#$0b,d0			; PAL_TRN: 512 system palettes
+	beq.s	.cp
+	lea	sgb_atf,a1
+	cmp.b	#$15,d0			; ATTR_TRN: 45 attribute files
+	beq.w	.cp			; (.w: .cp may be next)
+	IFD	SGB_BORD
+	lea	sgb_pct,a1
+	cmp.b	#$14,d0			; PCT_TRN: map and palettes 4-6
+	beq.s	.pct
+	lea	sgb_chr,a1		; CHR_TRN: 128 tiles, the low or high half
+	btst	#0,sgb_trnarg
+	beq.s	.chr
+	add.w	#$1000,a1
+.chr:	bsr.s	.copy
+	tst.b	sgb_bvalid		; a border up already: new tiles in it
+	beq.s	.bd
+	bsr.w	sgb_bmake
+	bra.s	.bd
+.pct:	bsr.s	.copy
+	bsr.w	sgb_bmake
+	bra.s	.bd
+	ENDC
+.cp:	bsr.s	.copy
+.bd:
+	IFD	SGB_BORD
+	tst.b	sgb_bvalid
+	beq.s	.y
+	move.w	sgb_pal,d0		; the backdrop is the border's colour 0 too
+	cmp.w	sgb_bc0,d0
+	beq.s	.same
+	st	sgb_bdirty
+.same:	tst.b	sgb_bdirty
+	beq.s	.y
+	tst.b	gbc_rtg_on
+	beq.s	.y
+	IFD	SGB_BFIT
+	bsr.w	sgb_bfit		; the whole border on the screen: maybe a smaller scale now
+	ENDC
+	bsr.w	sgb_bdraw
+.y:
+	ENDC
+	movem.l	(sp)+,d0-d7/a0-a6
+.x:	rts
+.copy:	lea	sgb_tbuf,a0		; 4 KB sgb_tbuf -> a1
+	move.w	#4096/16-1,d0
+.c:	move.l	(a0)+,(a1)+
+	move.l	(a0)+,(a1)+
+	move.l	(a0)+,(a1)+
+	move.l	(a0)+,(a1)+
+	dbra	d0,.c
+	rts
+
+; ---- the 4 KB a VRAM transfer carries -> sgb_tbuf: the tiles the BG map shows on the screen,
+; 20 a row from the top left (coarse SCX/SCY), as the Super Game Boy reads them from the
+; picture: bit planes through BGP (none in CGB mode). Window and objects are not looked at.
+sgb_vget:
+	move.l	gb_memory,a1
+	move.l	a1,a2
+	add.l	#$ff00,a2
+	move.b	$40(a2),d7		; LCDC
+	move.b	$47(a2),d6		; BGP
+	tst.b	gbc_mode
+	beq.s	.dmg
+	move.b	#$e4,d6
+.dmg:	moveq	#0,d4
+	move.b	$42(a2),d4
+	lsr.w	#3,d4			; SCY in tiles
+	moveq	#0,d5
+	move.b	$43(a2),d5
+	lsr.w	#3,d5			; SCX in tiles
+	move.l	a1,a3
+	add.l	#$9800,a3
+	btst	#3,d7
+	beq.s	.m0
+	add.w	#$400,a3
+.m0:	lea	sgb_tbuf,a0
+	moveq	#0,d3			; tiles done
+	moveq	#0,d2			; row
+.row:	move.w	d2,d0
+	add.w	d4,d0
+	and.w	#31,d0
+	lsl.w	#5,d0
+	lea	(a3,d0.w),a5		; the map row
+	moveq	#0,d1			; column
+.col:	move.w	d1,d0
+	add.w	d5,d0
+	and.w	#31,d0
+	move.b	(a5,d0.w),d0		; tile number
+	btst	#4,d7
+	beq.s	.sg
+	and.l	#$ff,d0			; $8000 + n * 16
+	lsl.l	#4,d0
+	add.l	#$8000,d0
+	bra.s	.ta
+.sg:	ext.w	d0			; $9000 + signed n * 16
+	ext.l	d0
+	lsl.l	#4,d0
+	add.l	#$9000,d0
+.ta:	lea	(a1,d0.l),a4
+	cmp.b	#$e4,d6
+	bne.s	.remap
+	move.l	(a4)+,(a0)+
+	move.l	(a4)+,(a0)+
+	move.l	(a4)+,(a0)+
+	move.l	(a4)+,(a0)+
+	bra.s	.next
+.remap:	bsr.s	sgb_bgprow
+.next:	addq.w	#1,d3
+	cmp.w	#256,d3
+	beq.s	.done
+	addq.w	#1,d1
+	cmp.w	#20,d1
+	bne.s	.col
+	addq.w	#1,d2
+	bra.s	.row
+.done:	rts
+
+; one tile (16 bytes a4 -> a0, both advanced) through BGP (d6): colour c becomes shade
+; BGP >> 2c; plane by plane, from masks of the pixels of each colour. Keeps the rest.
+sgb_bgprow:
+	movem.l	d0-d7/a6,-(sp)
+	lea	sgb_shtab,a6		; the shade of each colour
+	move.b	d6,d0
+	moveq	#4-1,d1
+.t:	moveq	#3,d2
+	and.b	d0,d2
+	move.b	d2,(a6)+
+	lsr.b	#2,d0
+	dbra	d1,.t
+	lea	sgb_shtab,a6
+	moveq	#8-1,d5
+.r:	move.b	(a4)+,d0		; low plane
+	move.b	(a4)+,d1		; high plane
+	moveq	#0,d2			; new low
+	moveq	#0,d3			; new high
+	moveq	#4-1,d4			; colour 3..0
+.c:	move.b	d0,d7
+	btst	#0,d4
+	bne.s	.l1
+	not.b	d7
+.l1:	move.b	d1,d6
+	btst	#1,d4
+	bne.s	.h1
+	not.b	d6
+.h1:	and.b	d6,d7			; the pixels of colour d4
+	move.b	(a6,d4.w),d6		; its shade
+	btst	#0,d6
+	beq.s	.n0
+	or.b	d7,d2
+.n0:	btst	#1,d6
+	beq.s	.n1
+	or.b	d7,d3
+.n1:	dbra	d4,.c
+	move.b	d2,(a0)+
+	move.b	d3,(a0)+
+	dbra	d5,.r
+	movem.l	(sp)+,d0-d7/a6
+	rts
+
+; ---- d0.w = a 15-bit colour (xbbbbbgggggrrrrr) -> d0.w in the screen's format (gbc_pixfmt),
+; as it is (a television, no LCD correction). Keeps the rest.
+sgb_rgbw:
+	movem.l	d1-d3,-(sp)
+	moveq	#$1f,d1
+	and.w	d0,d1			; r
+	move.w	d0,d2
+	lsr.w	#5,d2
+	and.w	#$1f,d2			; g
+	lsr.w	#8,d0
+	lsr.w	#2,d0
+	and.w	#$1f,d0			; b
+	btst	#2,gbc_pixfmt		; d1 = the top field, d0 = the bottom one
+	beq.s	.rgb
+	exg	d0,d1			; BGR: blue on top
+.rgb:	btst	#1,gbc_pixfmt
+	bne.s	.555
+	move.w	d2,d3			; 5-6-5: green c << 1 | c >> 4
+	add.w	d2,d2
+	lsr.w	#4,d3
+	or.w	d3,d2
+	lsl.w	#5,d2
+	moveq	#11,d3
+	lsl.w	d3,d1
+	bra.s	.or
+.555:	lsl.w	#5,d2
+	moveq	#10,d3
+	lsl.w	d3,d1
+.or:	or.w	d2,d0
+	or.w	d1,d0
+	btst	#0,gbc_pixfmt		; PC byte order
+	beq.s	.x
+	rol.w	#8,d0
+.x:	movem.l	(sp)+,d1-d3
+	rts
+
+	IFD	SGB_COL
+; ---- the four palettes through BGP, OBP0, OBP1 (gbc_dmgreg) -> sgb_lut: per palette 64 words
+; indexed by the line byte (BG 0-3, OBJ 32-35 / 36-39), as gbc_rgb is. Called at the end of
+; gbc_dmgrgb (a mono cart's palettes changed). Keeps every register.
+sgb_mklut:
+	tst.b	sgb_col
+	beq.w	.x
+	movem.l	d0-d7/a0-a3,-(sp)
+	tst.b	sgb_gotpal
+	bne.s	.have
+	lea	GBPaleta,a0		; no colours from the game yet: the menu's four shades
+	lea	sgb_pal,a1
+	moveq	#4-1,d7
+.g:	move.w	(a0)+,d0		; $0RGB, 4 bits a channel -> 5: c << 1 | c >> 3
+	move.w	d0,d1
+	lsr.w	#8,d1
+	and.w	#15,d1
+	move.w	d1,d3
+	add.w	d1,d1
+	lsr.w	#3,d3
+	or.w	d3,d1			; r
+	move.w	d0,d2
+	lsr.w	#4,d2
+	and.w	#15,d2
+	move.w	d2,d3
+	add.w	d2,d2
+	lsr.w	#3,d3
+	or.w	d3,d2			; g
+	and.w	#15,d0
+	move.w	d0,d3
+	add.w	d0,d0
+	lsr.w	#3,d3
+	or.w	d3,d0			; b
+	lsl.w	#5,d2
+	or.w	d2,d1
+	lsl.w	#8,d0
+	lsl.w	#2,d0
+	or.w	d0,d1
+	move.w	d1,(a1)
+	move.w	d1,8(a1)
+	move.w	d1,16(a1)
+	move.w	d1,24(a1)
+	addq.l	#2,a1
+	dbra	d7,.g
+.have:	lea	sgb_pal,a0		; the 16 colours in the screen's format
+	lea	sgb_sw,a1
+	moveq	#16-1,d7
+.s:	move.w	(a0)+,d0
+	bsr.w	sgb_rgbw
+	move.w	d0,(a1)+
+	dbra	d7,.s
+	move.w	sgb_sw,sgb_c0w
+	lea	sgb_lut,a1
+	lea	sgb_sw,a2
+	moveq	#4-1,d6
+.p:	move.l	a1,a3
+	move.b	gbc_dmgreg,d3		; BG: 0-3
+	bsr.s	.four
+	lea	32*2(a1),a3
+	move.b	gbc_dmgreg+1,d3		; OBJ: 32-35, 36-39
+	bsr.s	.four
+	move.b	gbc_dmgreg+2,d3
+	bsr.s	.four
+	lea	64*2(a1),a1
+	addq.l	#8,a2
+	dbra	d6,.p
+	movem.l	(sp)+,d0-d7/a0-a3
+.x:	rts
+.four:	moveq	#4-1,d4			; colours 0-3 of the register in d3
+.f:	moveq	#3,d5
+	and.b	d3,d5
+	move.w	(a2,d5.w*2),(a3)+
+	lsr.b	#2,d3
+	dbra	d4,.f
+	rts
+
+; ---- the line's bytes (a0, 160) -> screen words (a1) for gbc_line when sgb_on: the mask, the
+; block palettes (mono) or gbc_rgb (colour carts). d0-d3/a0-a3 used.
+sgb_conv:
+	move.b	sgb_mask,d0
+	bne.w	.mask
+	tst.b	sgb_col
+	beq.s	.plain
+	move.l	gb_scanlines,d0
+	lsr.w	#3,d0
+	mulu.w	#20,d0
+	lea	sgb_attr,a3
+	add.l	d0,a3
+	moveq	#20-1,d1
+	moveq	#0,d0
+.blk:	moveq	#0,d2
+	move.b	(a3)+,d2
+	lsl.w	#7,d2			; 64 words a palette
+	lea	sgb_lut,a2
+	add.w	d2,a2
+	REPT	8
+	move.b	(a0)+,d0
+	move.w	(a2,d0.w*2),(a1)+
+	ENDR
+	dbra	d1,.blk
+	rts
+.plain:	lea	gbc_rgb,a2
+	moveq	#160/8-1,d1
+	moveq	#0,d0
+.cv:	REPT	8
+	move.b	(a0)+,d0
+	move.w	(a2,d0.w*2),(a1)+
+	ENDR
+	dbra	d1,.cv
+	rts
+.mask:	cmp.b	#1,d0			; 1 freeze: the line stays as it was
+	beq.s	.x
+	moveq	#0,d2			; 2 black
+	cmp.b	#3,d0
+	bne.s	.fill
+	move.w	sgb_c0w,d2		; 3 colour 0
+.fill:	move.w	d2,d3
+	swap	d2
+	move.w	d3,d2
+	moveq	#160/2-1,d1
+.f:	move.l	d2,(a1)+
+	dbra	d1,.f
+.x:	rts
+	ENDC
+
+	IFD	SGB_BORD
+SGB_ROWMAX	=2048			; widest screen row the border is drawn into
+; ---- the border picture from sgb_chr and sgb_pct -> sgb_bpix (256 x 224 bytes: 0 = colour 0,
+; the backdrop; else palette (4-6 as 0-2) * 16 + colour 1-15). Keeps every register.
+sgb_bmake:
+	movem.l	d0-d7/a0-a6,-(sp)
+	lea	sgb_pct,a0		; the map: 32 x 28 little-endian words VH0P PP00 NNNN NNNN
+	lea	sgb_bpix,a1
+	sub.l	a5,a5			; map row
+.my:	sub.l	a6,a6			; map column
+.mx:	move.b	1(a0),d0
+	lsl.w	#8,d0
+	move.b	(a0),d0
+	addq.l	#2,a0
+	moveq	#0,d1
+	move.b	d0,d1			; the tile
+	lsl.w	#5,d1
+	lea	sgb_chr,a2
+	add.l	d1,a2
+	move.w	d0,d2			; the palette, 4-6 -> 0-2 (others 0)
+	lsr.w	#8,d2
+	lsr.w	#2,d2
+	and.w	#7,d2
+	subq.w	#4,d2
+	cmp.w	#2,d2
+	bls.s	.pok
+	moveq	#0,d2
+.pok:	lsl.w	#4,d2
+	move.l	a5,d1			; where the tile goes
+	lsl.l	#8,d1
+	lsl.l	#3,d1
+	move.l	a6,d3
+	lsl.l	#3,d3
+	add.l	d3,d1
+	lea	(a1,d1.l),a3
+	moveq	#0,d5			; pixel row
+.r:	move.w	d5,d1
+	btst	#15,d0			; Y flip
+	beq.s	.ny
+	moveq	#7,d1
+	sub.w	d5,d1
+.ny:	add.w	d1,d1			; planes 0/1 at 2r, 2/3 at 16 + 2r
+	move.b	1(a2,d1.w),d3
+	lsl.w	#8,d3
+	move.b	(a2,d1.w),d3		; d3 = plane 1 : plane 0
+	move.b	17(a2,d1.w),d4
+	lsl.w	#8,d4
+	move.b	16(a2,d1.w),d4		; d4 = plane 3 : plane 2
+	moveq	#7,d1			; the bit of the first pixel (X flip: bit 0)
+	btst	#14,d0
+	beq.s	.nf
+	moveq	#0,d1
+.nf:	moveq	#8-1,d7
+.p:	moveq	#0,d6
+	btst	d1,d3
+	beq.s	.b1
+	addq.b	#1,d6
+.b1:	addq.w	#8,d1
+	btst	d1,d3
+	beq.s	.b2
+	addq.b	#2,d6
+.b2:	subq.w	#8,d1
+	btst	d1,d4
+	beq.s	.b3
+	addq.b	#4,d6
+.b3:	addq.w	#8,d1
+	btst	d1,d4
+	beq.s	.b4
+	addq.b	#8,d6
+.b4:	subq.w	#8,d1
+	tst.b	d6
+	beq.s	.c0
+	add.b	d2,d6
+.c0:	move.b	d6,(a3)+
+	btst	#14,d0
+	bne.s	.xf
+	subq.w	#1,d1
+	bra.s	.pn
+.xf:	addq.w	#1,d1
+.pn:	dbra	d7,.p
+	lea	256-8(a3),a3
+	addq.w	#1,d5
+	cmp.w	#8,d5
+	bne.w	.r
+	addq.w	#1,a6
+	cmpa.w	#32,a6
+	bne.w	.mx
+	addq.w	#1,a5
+	cmpa.w	#28,a5
+	bne.w	.my
+	st	sgb_bvalid
+	st	sgb_bdirty
+	movem.l	(sp)+,d0-d7/a0-a6
+	rts
+
+	IFD	SGB_BFIT
+; ---- SGB_BFIT: with a border up, the picture at the largest scale at which the whole 256 x 224
+; border fits the screen (the game in its middle), not the game's own; a Super Game Boy on a
+; television shows all of it. gbc_rtg_open: d0.w = the game's scale -> d0.w = the scale to use.
+; Keeps the rest.
+sgb_bfitsc:
+	tst.b	sgb_bvalid
+	beq.s	.x
+	move.l	d1,-(sp)
+	move.w	d0,d1
+	bsr.s	sgb_bscale
+	cmp.w	d1,d0
+	bls.s	.s
+	move.w	d1,d0
+.s:	move.l	(sp)+,d1
+.x:	rts
+; d0.w = the largest s <= GBC_RMAXS (at least 1) with 256s x 224s inside the mode. Keeps the rest.
+sgb_bscale:
+	move.l	d1,-(sp)
+	moveq	#0,d0
+	move.w	gbc_rw,d0
+	divu.w	#256,d0
+	moveq	#0,d1
+	move.w	gbc_rh,d1
+	divu.w	#224,d1
+	cmp.w	d0,d1
+	bcc.s	.a
+	move.w	d1,d0
+.a:	cmp.w	#GBC_RMAXS,d0
+	bls.s	.b
+	moveq	#GBC_RMAXS,d0
+.b:	tst.w	d0
+	bne.s	.c
+	moveq	#1,d0
+.c:	move.l	(sp)+,d1
+	rts
+; sgb_frame, a new border with the screen open: when the whole border needs a smaller scale than
+; the picture has, the picture moves to it (origins of both buffers as gbc_rtg_open sets them,
+; every line copied again); sgb_bdraw then covers the rest. OS frozen. Keeps every register.
+sgb_bfit:
+	movem.l	d0-d3,-(sp)
+	bsr.s	sgb_bscale
+	cmp.w	gbc_rscale,d0
+	bcc.s	.x
+	move.w	d0,gbc_rscale
+	move.w	d0,d3
+	mulu.w	#160,d0
+	move.w	gbc_rw,d1
+	sub.w	d0,d1
+	lsr.w	#1,d1			; left
+	move.w	d3,d0
+	mulu.w	#144,d0
+	move.w	gbc_rh,d2
+	sub.w	d0,d2
+	lsr.w	#1,d2			; top
+	move.l	gbc_rbpr,d0
+	mulu.w	d2,d0
+	and.l	#$ffff,d1
+	add.l	d1,d1
+	add.l	d1,d0
+	add.l	gbc_rmem,d0
+	move.l	d0,gbc_rorg
+	move.l	d0,gbc_rorgs
+	move.l	gbc_rbpr,d1
+	mulu.w	gbc_rh,d1
+	add.l	d1,d0
+	move.l	d0,gbc_rorgs+4
+	st	gbc_rfull
+	st	gbc_rfull+1
+	IFD	GBC_BLEND
+	st	gbc_bfirst
+	ENDC
+.x:	movem.l	(sp)+,d0-d3
+	rts
+	ENDC
+
+; ---- the border onto the RTG screen, both buffers: every pixel but the picture's, at the
+; picture's scale around it (the game at border pixel 48, 40), black where the border is not,
+; cut to the screen. OS alive (gbc_rtg_open) or frozen (sgb_frame). Keeps every register.
+sgb_bdraw:
+	movem.l	d0-d7/a0-a6,-(sp)
+	clr.b	sgb_bdirty
+	move.w	sgb_pal,d0		; colour 0: the backdrop
+	move.w	d0,sgb_bc0
+	bsr.w	sgb_rgbw
+	lea	sgb_bcolw,a1
+	move.w	d0,(a1)+
+	lea	sgb_pct+$800,a0		; palettes 4-6, little-endian
+	moveq	#1,d6
+.c:	move.b	1(a0,d6.w*2),d0
+	lsl.w	#8,d0
+	move.b	(a0,d6.w*2),d0
+	and.w	#$7fff,d0
+	bsr.w	sgb_rgbw
+	move.w	d0,(a1)+
+	addq.w	#1,d6
+	cmp.w	#48,d6
+	bne.s	.c
+	move.w	gbc_rscale,d5		; s
+	move.w	d5,d0
+	mulu.w	#160,d0
+	move.w	d0,sgb_gpw
+	move.w	gbc_rw,d1
+	sub.w	d0,d1
+	asr.w	#1,d1
+	move.w	d1,sgb_gl		; the picture's left
+	move.w	d5,d0
+	mulu.w	#48,d0
+	sub.w	d0,d1
+	move.w	d1,sgb_gox		; the border's
+	move.w	d5,d0
+	mulu.w	#144,d0
+	move.w	d0,sgb_gph
+	move.w	gbc_rh,d1
+	sub.w	d0,d1
+	asr.w	#1,d1
+	move.w	d1,sgb_gt		; the picture's top
+	move.w	d5,d0
+	mulu.w	#40,d0
+	sub.w	d0,d1
+	move.w	d1,sgb_goy		; the border's
+	move.w	gbc_rw,d0
+	cmp.w	#SGB_ROWMAX,d0
+	bls.s	.wok
+	move.w	#SGB_ROWMAX,d0
+.wok:	move.w	d0,sgb_gw
+	move.l	gbc_rmem,a6		; buffer 0
+	bsr.s	.buf
+	tst.b	gbc_rdbuf
+	beq.s	.done
+	move.l	gbc_rbpr,d0		; buffer 1: the lower half
+	mulu.w	gbc_rh,d0
+	add.l	d0,a6
+	bsr.s	.buf
+.done:	movem.l	(sp)+,d0-d7/a0-a6
+	rts
+; one buffer at a6; d5 = s
+.buf:	moveq	#0,d7			; screen row
+	moveq	#-1,d6			; the border row sgb_brow holds (-2: black)
+	move.l	a6,a4
+.y:	move.w	d7,d0
+	sub.w	sgb_goy,d0
+	bmi.s	.blk
+	ext.l	d0
+	divu.w	d5,d0
+	cmp.w	#224,d0
+	bcc.s	.blk
+	cmp.w	d6,d0
+	beq.s	.put
+	move.w	d0,d6
+	bsr.w	.mkrow
+	bra.s	.put
+.blk:	cmp.w	#-2,d6
+	beq.s	.put
+	moveq	#-2,d6
+	lea	sgb_brow,a0
+	move.w	sgb_gw,d0
+	subq.w	#1,d0
+.bz:	clr.w	(a0)+
+	dbra	d0,.bz
+.put:	lea	sgb_brow,a0
+	move.l	a4,a1
+	move.w	d7,d0			; a picture row: the picture's part left alone
+	sub.w	sgb_gt,d0
+	bmi.s	.whole
+	cmp.w	sgb_gph,d0
+	bcc.s	.whole
+	move.w	sgb_gl,d0
+	bsr.s	.cpy
+	move.w	sgb_gpw,d0
+	add.w	d0,a0
+	add.w	d0,a0
+	add.w	d0,a1
+	add.w	d0,a1
+	move.w	sgb_gw,d0
+	sub.w	sgb_gl,d0
+	sub.w	sgb_gpw,d0
+	bsr.s	.cpy
+	bra.s	.ny
+.whole:	move.w	sgb_gw,d0
+	bsr.s	.cpy
+.ny:	add.l	gbc_rbpr,a4
+	addq.w	#1,d7
+	cmp.w	gbc_rh,d7
+	bne.w	.y
+	rts
+.cpy:	subq.w	#1,d0			; d0 words a0 -> a1
+	bmi.s	.cx
+.cl:	move.w	(a0)+,(a1)+
+	dbra	d0,.cl
+.cx:	rts
+; border row d6 -> sgb_brow (screen width, s pixels each, black outside)
+.mkrow:	lea	sgb_brow,a0
+	move.w	sgb_gw,d0
+	subq.w	#1,d0
+.mz:	clr.w	(a0)+
+	dbra	d0,.mz
+	lea	sgb_brow,a0
+	lea	sgb_bpix,a2
+	moveq	#0,d0
+	move.w	d6,d0
+	lsl.l	#8,d0
+	add.l	d0,a2
+	lea	sgb_bcolw,a3
+	move.w	sgb_gox,d1		; x
+	move.w	#256-1,d2
+.mb:	moveq	#0,d0
+	move.b	(a2)+,d0
+	move.w	(a3,d0.w*2),d0
+	move.w	d5,d3
+	subq.w	#1,d3
+.mk:	tst.w	d1
+	bmi.s	.mn
+	cmp.w	sgb_gw,d1
+	bge.s	.mn
+	move.w	d0,(a0,d1.w*2)
+.mn:	addq.w	#1,d1
+	dbra	d3,.mk
+	dbra	d2,.mb
+	rts
+
+; ---- gbc_rtg_open: the border if there is one, in the bezel's place. NE: drawn (no bezel).
+; Keeps every register.
+sgb_bopen:
+	tst.b	sgb_bvalid
+	beq.s	.x
+	bsr.w	sgb_bdraw
+	tst.b	sgb_bvalid
+.x:	rts
+	ENDC
+
+	IFD	SGB_DUMP
+; ---- test: GB:AmiGB.sgb at AutoExit: "SGB1", on, col, mask, mlt, player, bvalid, gotpal, then the
+; cart's $C000-$C010 (17 bytes), palettes (32), attributes (360), command counts (32 longs),
+; with SGB_BORD the border pixels (57344) and palettes 4-6 (96). tools/sgb_check.py.
+sgb_dump:
+	movem.l	d0-d7/a0-a6,-(sp)
+	bsr.s	sgb_dfill
+	bra.s	sgb_dwr
+; the header block: flags and the cart's $C000-$C010
+sgb_dfill:
+	movem.l	d0/a0-a1,-(sp)
+	lea	sgb_dhead+4,a0
+	move.b	sgb_on,(a0)+
+	move.b	sgb_col,(a0)+
+	move.b	sgb_mask,(a0)+
+	move.b	sgb_mlt,(a0)+
+	move.b	sgb_player,(a0)+
+	move.b	sgb_bvalid,(a0)+
+	move.b	sgb_gotpal,(a0)+
+	move.l	gb_memory,a1
+	add.l	#$c000,a1
+	moveq	#17-1,d0
+.m:	move.b	(a1)+,(a0)+
+	dbra	d0,.m
+	movem.l	(sp)+,d0/a0-a1
+	rts
+sgb_dwr:
+	IFD	SGB_SNAP
+	move.l	sgb_snapn,d0
+	move.l	d0,sgb_snhead+4
+	mulu.l	#SGB_SNAPSZ,d0
+	move.l	d0,.list+12
+	ENDC
+	move.l	HyDosBase,a6
+	move.l	#sgb_dname,d1
+	move.l	#MODE_NEWFILE,d2
+	jsr	dosOpen(a6)
+	move.l	d0,d4
+	beq.s	.x
+	lea	.list(pc),a2
+.w:	move.l	(a2)+,d2
+	beq.s	.c
+	move.l	(a2)+,d3
+	move.l	d4,d1
+	jsr	dosWrite(a6)
+	bra.s	.w
+.c:	move.l	d4,d1
+	jsr	dosClose(a6)
+.x:	movem.l	(sp)+,d0-d7/a0-a6
+	rts
+.list:
+	IFD	SGB_SNAP
+	dc.l	sgb_snhead,8,sgb_snaps,0
+	ELSE
+	dc.l	sgb_dhead,28,sgb_pal,32,sgb_attr,360,sgb_cnt,128
+	IFD	SGB_BORD
+	dc.l	sgb_bpix,256*224,sgb_pct+$800,96
+	ENDC
+	ENDC
+	dc.l	0
+	ENDC
+
+	IFD	SGB_SNAP
+	IFND	SGB_SNAPMAX
+SGB_SNAPMAX	=24
+	ENDC
+SGB_SNAPSZ	=4+28+32+360+128+256*224+96+4+160*144*2
+; ---- test: every SGB_SNAP Game Boy frames (up to SGB_SNAPMAX) the frame number, the dump block,
+; the border, gbc_pixfmt and the picture (gbc_fb) into memory; sgb_dump writes them all at the
+; exit to GB:AmiGB.sgb ("SGBS", count, the snapshots). Needs SGB_BORD and SGB_DUMP. Keeps every
+; register.
+	SECTION	sgbscode,CODE
+sgb_snap:
+	movem.l	d0-d1/a0-a1,-(sp)
+	move.l	HyFrames,d0
+	bmi.w	.x			; (-1 in the menu)
+	sub.l	sgb_snapl,d0
+	cmp.l	#SGB_SNAP,d0
+	bcs.w	.x
+	move.l	sgb_snapn,d0
+	cmp.l	#SGB_SNAPMAX,d0
+	bcc.w	.x
+	move.l	HyFrames,sgb_snapl
+	addq.l	#1,sgb_snapn
+	mulu.l	#SGB_SNAPSZ,d0
+	lea	sgb_snaps,a1
+	add.l	d0,a1
+	move.l	HyFrames,(a1)+
+	jsr	sgb_dfill
+	lea	sgb_dhead,a0
+	moveq	#28-1,d0
+.h:	move.b	(a0)+,(a1)+
+	dbra	d0,.h
+	lea	sgb_pal,a0
+	moveq	#32-1,d0
+.p:	move.b	(a0)+,(a1)+
+	dbra	d0,.p
+	lea	sgb_attr,a0
+	move.w	#360-1,d0
+.a:	move.b	(a0)+,(a1)+
+	dbra	d0,.a
+	lea	sgb_cnt,a0
+	moveq	#32-1,d0
+.n:	move.l	(a0)+,(a1)+
+	dbra	d0,.n
+	lea	sgb_bpix,a0
+	move.w	#256*224/4-1,d0
+.b:	move.l	(a0)+,(a1)+
+	dbra	d0,.b
+	lea	sgb_pct+$800,a0
+	moveq	#96-1,d0
+.c:	move.b	(a0)+,(a1)+
+	dbra	d0,.c
+	moveq	#0,d0
+	move.b	gbc_pixfmt,d0
+	move.l	d0,(a1)+
+	lea	gbc_fb,a0
+	move.w	#160*144/2-1,d0
+.f:	move.l	(a0)+,(a1)+
+	dbra	d0,.f
+.x:	movem.l	(sp)+,d0-d1/a0-a1
+	rts
+	SECTION	sgbsbss,BSS
+sgb_snapl:	ds.l	1
+sgb_snapn:	ds.l	1
+sgb_snaps:	ds.b	SGB_SNAPSZ*SGB_SNAPMAX
+	ENDC
+
+	SECTION	sgbdata,DATA
+sgb_opt:	dc.b	1		; "Super Game Boy = Auto" (1, the default) or Off (0)
+	IFD	SGB_OPT
+sgb_kname:	dc.b	"SUPER GAME BOY",0	; the config line (gbc_rcfg)
+sgb_kauto:	dc.b	"AUTO",0
+	ENDC
+	IFD	SGB_DUMP
+sgb_dname:	dc.b	"GB:AmiGB.sgb",0
+	even
+sgb_dhead:	dc.b	"SGB1"
+	ds.b	24
+	IFD	SGB_SNAP
+sgb_snhead:	dc.b	"SGBS"
+	dc.l	0
+	ENDC
+	ENDC
+	even
+
+	SECTION	sgbbss,BSS
+sgb_dstart:				; cleared at each Power On
+sgb_on:		ds.b	1		; the cart has the Super Game Boy (packets)
+sgb_col:	ds.b	1		; ... and is mono: the block palettes
+sgb_p1:		ds.b	1		; the last P1 write
+sgb_rdy:	ds.b	1		; both lines were high since the last pulse
+sgb_inpk:	ds.b	1		; a packet is coming in
+sgb_stopw:	ds.b	1		; 128 bits in: the stop bit next
+sgb_mlt:	ds.b	1		; pads - 1 (0, 1, 3)
+sgb_player:	ds.b	1		; the pad P1 shows (0-3)
+sgb_dis:	ds.b	1		; ICON_EN: no more packets
+sgb_mask:	ds.b	1		; MASK_EN 0-3
+sgb_trn:	ds.b	1		; a VRAM transfer waiting (its command)
+sgb_trnw:	ds.b	1		; frames until it is taken
+sgb_trnarg:	ds.b	1		; its byte 1 (CHR_TRN: low or high tiles)
+sgb_gotpal:	ds.b	1		; the game has set colours
+sgb_bvalid:	ds.b	1		; a border is there
+sgb_bdirty:	ds.b	1		; ... to be drawn
+sgb_bitn:	ds.w	1		; bits of the command in sgb_buf
+sgb_c0w:	ds.w	1		; colour 0 in the screen's format
+sgb_bc0:	ds.w	1		; the backdrop the border was drawn with
+sgb_pal:	ds.w	16		; palettes 0-3, colours 0-3, 15-bit
+sgb_buf:	ds.b	112		; the command, up to 7 packets
+sgb_attr:	ds.b	360		; the 20 x 18 blocks' palettes
+sgb_sys:	ds.b	4096		; PAL_TRN: 512 palettes of 4 (little-endian)
+sgb_atf:	ds.b	4096		; ATTR_TRN: 45 attribute files of 90 bytes
+sgb_dend:
+sgb_cnt:	ds.l	32		; commands taken, per number (test dump)
+sgb_sw:		ds.w	16		; sgb_pal in the screen's format
+sgb_lut:	ds.w	4*64		; per palette: line byte -> screen word
+sgb_shtab:	ds.b	4
+sgb_tbuf:	ds.b	4096		; the last VRAM transfer
+	IFD	SGB_BORD
+sgb_gl:		ds.w	1		; sgb_bdraw: the picture's left, top, width, height on the
+sgb_gt:		ds.w	1		; screen, the border's left and top, the row width
+sgb_gpw:	ds.w	1
+sgb_gph:	ds.w	1
+sgb_gox:	ds.w	1
+sgb_goy:	ds.w	1
+sgb_gw:		ds.w	1
+sgb_bcolw:	ds.w	48		; border colours in the screen's format (0 = backdrop)
+sgb_chr:	ds.b	8192		; CHR_TRN: 256 tiles, 4 bits a pixel
+sgb_pct:	ds.b	4096		; PCT_TRN: map, palettes 4-6 at $800
+sgb_bpix:	ds.b	256*224		; the border picture
+sgb_brow:	ds.w	SGB_ROWMAX	; one screen row of it
+	ENDC

@@ -1,6 +1,6 @@
 # AmiGameBoy
 
-**AmiGameBoy 2.2, community version** (19 November 2026). Download: the LhA archive on the [Releases](https://github.com/z00p/AmiGameBoy/releases) page, or Aminet misc/emu/AmiGameBoyCE.lha.
+**AmiGameBoy 2.3, community version** (24 November 2026). Download: the LhA archive on the [Releases](https://github.com/z00p/AmiGameBoy/releases) page, or Aminet misc/emu/AmiGameBoyCE.lha.
 
 AmiGameBoy is a Game Boy and Game Boy Color emulator for AGA Amigas, in
 68020+ assembly. It plays .gb and .gbc cartridges with sound, battery
@@ -20,8 +20,9 @@ There are three programs. All three have the same menu.
   AGA 030   Game Boy only, on the AGA screen. For an A1200 with a
             68030/50 and other machines too slow for colour.
   RTG       Game Boy and Game Boy Color on a graphics board (a 16-bit
-            Picasso96 screen mode), with the screen surround on. For
-            PiStorm RTG, BigMig and other graphics boards.
+            Picasso96 screen mode), with the screen surround on, and
+            the Super Game Boy's colours and borders. For PiStorm RTG,
+            BigMig and other graphics boards.
 ```
 
 Mono cartridges look the same in AGA and AGA 030 (Juan's display);
@@ -37,7 +38,8 @@ AGA 030 is the program to start now (AGA is the colour one).
 - RTG: Picasso96 and a 16-bit screen mode. The program picks the mode
   itself (960x540 first, then 640x480, then the smallest that fits).
 - Memory: about twice the size of the cartridge plus 256 KB, fast RAM
-  for preference (a 1 MB cartridge needs about 2.3 MB free).
+  for preference (a 1 MB cartridge needs about 2.3 MB free). The RTG
+  program takes about 100 KB more.
 - asl.library (part of AmigaOS).
 
 ## Starting a game
@@ -84,10 +86,11 @@ CD32 pad in port 2:
 ## The settings file
 Each program writes the file AmiGameBoy.config beside itself the first
 time it starts, and reads it each time it starts. Edit it with any text
-editor; delete it to get the defaults back. Bezel and Scanlines are in
-the RTG program's Options menu too, and LCD Colours in the AGA and RTG
-programs' Options menu: a tick there changes the line in the file (the
-bezel shows from the next Continue). One setting a line:
+editor; delete it to get the defaults back. Bezel, Scanlines and Super
+Game Boy are in the RTG program's Options menu too, and LCD Colours in
+the AGA and RTG programs' Options menu: a tick there changes the line
+in the file (the bezel shows from the next Continue, Super Game Boy
+from the next Power ON). One setting a line:
 
 ```
   Red = A        what a pad button does. Buttons: Red, Blue, Green,
@@ -106,6 +109,10 @@ bezel shows from the next Continue). One setting a line:
                  them; Raw shows them as the game sets them. A file
                  from 2.0 has no Colours line, so LCD: add the line
                  Colours = Raw to change it.
+  Super Game Boy = Auto  RTG: Auto shows the Super Game Boy colours
+                 and border of cartridges made for it; Off gives the
+                 plain Game Boy look. A file from 2.2 or before has no
+                 such line, so Auto. See Super Game Boy below.
 ```
 
 CD32 pads tried on an A1200: a KTRL CD32 with "CD32 pad"; a Mega Multi
@@ -117,6 +124,26 @@ Load it from the menu like a game: it lists the Game Boy buttons with
 the pad buttons that drive them by default, and each box fills while
 the Game Boy sees that button held (keyboard, joystick or pad). If a
 pad button flickers or does not fill its box, try the other Pad line.
+
+## Super Game Boy
+RTG program only. Cartridges made for the Super Game Boy send it their
+colours and a border picture; the RTG program shows them as the Super
+Game Boy did: the game in its colours, with the border round it in
+place of the screen surround. The whole border is on the screen (the
+game is drawn a size smaller where it would not fit).
+
+Options menu, Super Game Boy: ticked (the default) is Auto, unticked
+is Off, the plain Game Boy look. The tick writes the line
+Super Game Boy = Auto (or Off) in AmiGameBoy.config and counts from
+the next Power ON.
+
+Cartridges made for both the Game Boy and the Game Boy Color that have
+Super Game Boy extras run as a real Super Game Boy runs them: in mono,
+with its colours and border. Untick Super Game Boy to play them as a
+Game Boy Color game.
+
+The Super Game Boy's own sound is not played. In two-player Super Game
+Boy games player 2 reads as nothing pressed.
 
 ## Battery saves
 A game that saves keeps its battery RAM in a .sav file beside the
@@ -136,7 +163,8 @@ Red. Save Prefs writes the settings to S:AmiGameBoy.prefs.
   dual-mode cartridges run in mono.
 - Cartridges over 2 MB (refused).
 - The link cable, the Game Boy Camera and the Game Boy Printer.
-- Super Game Boy features (borders, palettes).
+- AGA and AGA 030: Super Game Boy features. RTG: the Super Game Boy's
+  own sound, and player 2 in its two-player games.
 - From the original menu, not connected in this version: frozen games
   (snapshots), cheats and the monitor. Keyboard, joystick and CD32 pad
   are always active, whatever the Joy type (Standard Joypad: see the
@@ -147,7 +175,7 @@ Cartridge types MBC1, MBC2, MBC3 (with the clock) and MBC5 are handled.
 ## Credits
 - Juan Antonio Gómez Gálvez: AmiGameBoy, the menu and the display.
 - Ville Helin: Wzonka-Lad, the Game Boy engine.
-- z00p: the community version, sound, Game Boy Color.
+- z00p: the community version, sound, Game Boy Color, Super Game Boy.
 - Multivac: icons and graphics in Juan's original.
 - Ventzislav Tzvetkov: later small fixes to Wzonka-Lad.
 - Afrotechmods / FAmiga: the CD32 pad read.
@@ -183,6 +211,9 @@ Ville Helin (DAA, the half-carry flags, the stack pointer additions,
 the delay after EI), removes a black band under Mega Man V's sliding
 panel, and stops a two-button pad on Standard Joypad from sending the
 game back to the menu.
+Version 2.3 adds the Super Game Boy to the RTG program: the colours
+and borders of cartridges made for it, with a tick in the Options menu
+to turn it off.
 
 ## Source and building
 
@@ -198,7 +229,8 @@ Afrotechmods) is under the MIT licence (src/hybrid/cd32pad.LICENSE).
   src/hybrid/          the community version: Juan's display on the
                        engine, sound, CD32 pad, the menu's glue, and
                        Game Boy Color (gbc_*.s: the colour engine, the
-                       line renderer, the AGA and RTG displays)
+                       line renderer, the AGA and RTG displays), the
+                       Super Game Boy (sgb.s, RTG only)
   build.sh             the build script
   tools/embed_rom.py   for the test builds with a cartridge inside
 

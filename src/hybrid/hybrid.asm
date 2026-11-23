@@ -66,6 +66,76 @@ GBC_DMG		SET	1		; carts keep Juan's display (gbc_aga.s)
 	FAIL	"GBC_AGA or GBC_RTG, not both"
 	ENDC
 	ENDC
+	IFD	SGB			; Super Game Boy (2.3 candidate, RTG program only; sgb.s): all of it
+	IFND	SGB_PKT
+SGB_PKT		SET	1		; packets, MLT_REQ, palette and attribute commands
+	ENDC
+	IFND	SGB_COL
+SGB_COL		SET	1		; mono carts in the block colours, MASK_EN
+	ENDC
+	IFND	SGB_BORD
+SGB_BORD	SET	1		; the border (CHR_TRN, PCT_TRN)
+	ENDC
+	IFND	SGB_BFIT
+SGB_BFIT	SET	1		; the whole border on the screen (a smaller scale when needed)
+	ENDC
+	IFND	SGB_OPT
+SGB_OPT		SET	1		; "Super Game Boy = Auto|Off" in AmiGameBoy.config
+	ENDC
+	IFND	SGB_MENU
+SGB_MENU	SET	1		; its Options menu tick
+	ENDC
+	IFND	SGB_DUAL
+SGB_DUAL	SET	1		; dual .gbc carts ($80) with Super Game Boy extras run as on an SGB
+	ENDC
+	ENDC
+	IFD	SGB_PKT
+	IFND	GBC_RTG
+	FAIL	"SGB_PKT needs GBC_RTG (the Super Game Boy is RTG only)"
+	ENDC
+	IFND	GBC_DMG
+	FAIL	"SGB_PKT needs GBC_DMG (the hymenu build, or -DGBC_DMG)"
+	ENDC
+	ENDC
+	IFD	SGB_DUAL
+	IFND	SGB_PKT
+	FAIL	"SGB_DUAL needs SGB_PKT"
+	ENDC
+	ENDC
+	IFD	SGB_COL
+	IFND	SGB_PKT
+	FAIL	"SGB_COL needs SGB_PKT"
+	ENDC
+	ENDC
+	IFD	SGB_BORD
+	IFND	SGB_PKT
+	FAIL	"SGB_BORD needs SGB_PKT"
+	ENDC
+	ENDC
+	IFD	SGB_BFIT
+	IFND	SGB_BORD
+	FAIL	"SGB_BFIT needs SGB_BORD"
+	ENDC
+	ENDC
+	IFD	SGB_OPT
+	IFND	SGB_PKT
+	FAIL	"SGB_OPT needs SGB_PKT"
+	ENDC
+	IFND	GBC_RBEZ
+	FAIL	"SGB_OPT needs GBC_RBEZ (its config reader)"
+	ENDC
+	ENDC
+	IFD	SGB_MENU
+	IFND	SGB_OPT
+	FAIL	"SGB_MENU needs SGB_OPT"
+	ENDC
+	IFND	GBC_CCMENU
+	FAIL	"SGB_MENU needs GBC_RMENU and GBC_CCMENU (the item after them)"
+	ENDC
+	IFND	GBC_RMENU
+	FAIL	"SGB_MENU needs GBC_RMENU and GBC_CCMENU (the item after them)"
+	ENDC
+	ENDC
 ; exec / dos offsets
 AllocMem	=-198
 FreeMem		=-210
@@ -177,6 +247,10 @@ Start:	movem.l	d2-d7/a2-a6,-(sp)
 	IFD	GBC_AGA
 	jsr	gbc_aga_init
 	ENDC
+	ENDC
+	IFD	SGB_PKT			; Super Game Boy carts (sgb.s)
+	move.l	gb_mem_jumps,a0
+	jsr	sgb_install
 	ENDC
 
 	IFND	NO_SOUND
@@ -368,6 +442,9 @@ hybrid_frame:
 	ENDC
 	IFD	GBC_RENDER
 	jsr	gbc_frame_end		; LCD off all frame: white
+	ENDC
+	IFD	SGB_PKT			; Super Game Boy: VRAM transfers, the border (sgb.s)
+	jsr	sgb_frame
 	ENDC
 	IFD	HY_FRAMELOG
 	bsr.w	HyFLogAdd
@@ -785,6 +862,9 @@ HyExit:
 	IFD	GBC_RENDER
 	bsr.w	GbcFbSave
 	ENDC
+	IFD	SGB_DUMP		; test: the Super Game Boy state (sgb.s)
+	jsr	sgb_dump
+	ENDC
 	ENDC
 	IFD	HY_FRAMELOG
 	bsr.w	HyFLogSave
@@ -1161,6 +1241,9 @@ HyWzEnd:				; end of the engine state (menu.s keeps a copy)
 	ENDC
 	IFD	GBC_RTG
 	include	"gbc_rtg.s"
+	ENDC
+	IFD	SGB_PKT			; Super Game Boy (RTG; 2.3 candidate)
+	include	"sgb.s"
 	ENDC
 	IFD	GBC_RMENU		; 2.1: Bezel and Scanlines in the Options menu (RTG)
 	IFND	GBC_RBEZ

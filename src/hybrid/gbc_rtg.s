@@ -171,7 +171,11 @@ gbc_rtg_open:
 .sc1:	cmp.w	#GBC_RMAXS,d0
 	bls.s	.sc2
 	moveq	#GBC_RMAXS,d0
-.sc2:	move.w	d0,gbc_rscale
+.sc2:
+	IFD	SGB_BFIT		; a Super Game Boy border up: the scale at which all of it fits (sgb.s)
+	jsr	sgb_bfitsc
+	ENDC
+	move.w	d0,gbc_rscale
 	move.w	d0,d3
 	mulu.w	#160,d0
 	move.w	gbc_rw,d1
@@ -202,8 +206,15 @@ gbc_rtg_open:
 .cl:	clr.l	(a0)+
 .cle:	subq.l	#1,d0
 	bpl.s	.cl
+	IFD	SGB_BORD		; a Super Game Boy border instead, when the cart sent one (sgb.s)
+	jsr	sgb_bopen
+	bne.s	.sbd
+	ENDC
 	IFD	GBC_RBEZ
 	jsr	gbc_rbez		; "Bezel = On": the handheld round the picture
+	ENDC
+	IFD	SGB_BORD
+.sbd:
 	ENDC
 	st	gbc_rfull		; the first copy to each buffer: every line
 	IFD	GBC_BLEND
@@ -1077,6 +1088,12 @@ gbc_rcfgtab:
 	dc.l	gbc_rscanon,gbc_rkscan,gbc_rkon
 	dc.w	1
 	dc.l	gbc_rscanon,gbc_rkscan,gbc_rkoff
+	dc.w	0
+	ENDC
+	IFD	SGB_OPT			; "Super Game Boy = Auto|Off" (sgb.s)
+	dc.l	sgb_opt,sgb_kname,sgb_kauto
+	dc.w	1
+	dc.l	sgb_opt,sgb_kname,gbc_rkoff
 	dc.w	0
 	ENDC
 	dc.l	0

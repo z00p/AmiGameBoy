@@ -363,6 +363,11 @@ HyPadCfgText:
 	dc.b	"Colours = Raw",10
 	ENDC
 	ENDC
+	IFD	SGB_OPT
+	dc.b	"; Super Game Boy = Auto: cartridges made for the Super Game Boy get its",10
+	dc.b	"; colours and border. Off: the plain Game Boy look. (RTG only)",10
+	dc.b	"Super Game Boy = Auto",10
+	ENDC
 HyPadCfgEnd:
 	even
 	ENDC

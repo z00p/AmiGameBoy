@@ -3275,6 +3275,9 @@ MenuOptions:
 	IFD	GBC_CCMENU
 	DC.L	gbc_rmcc		; hybrid: LCD Colours (AGA, RTG, hybrid/rmenu.s)
 	ENDC
+	IFD	SGB_MENU
+	DC.L	gbc_rmsgb		; hybrid: Super Game Boy (RTG, hybrid/rmenu.s)
+	ENDC
 
 SubMenuCPU:
 	DC.L	ControlRET		; Syncronized
