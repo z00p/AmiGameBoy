@@ -43,9 +43,10 @@ and runs dual-mode ones in mono. AGA: more than 255 colours in one picture are
 capped (rare).
 
 **Known issues**
-- GB Corp (homebrew) shows a white screen with Super Game Boy on. Untick it to
-  play.
 - Two-player Super Game Boy games read player 2 as nothing pressed.
+
+(GB Corp, listed here at release, works with Super Game Boy on: the white
+screen was the game's own pause between screens, caught in a test grab.)
 
 **Tested** on an A1200 with a PiStorm (RTG): our own Super Game Boy test
 cartridge, Wario Land II, the Options menu tick. In WinUAE (RTG): the test
