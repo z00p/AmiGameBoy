@@ -32,6 +32,8 @@ on. This community version, released with his consent, keeps his menu
 and his AGA display and runs the games on the Game Boy engine of
 Wzonka-Lad by Ville Helin (GPL-2).
 
+2.4   Two-player Super Game Boy games read player 2 from port 1 (a
+      CD32 pad or a joystick); "Pad 2 = KTRL CD32+" for adapters.
 2.3   Super Game Boy in the RTG program: the colours and the whole
       border of cartridges made for it; a tick in the Options menu
       ("Super Game Boy = Auto|Off" in AmiGameBoy.config). Cartridges
@@ -87,8 +89,8 @@ may legally have.
 Not supported
 -------------
 Cartridges over 2 MB, the link cable, the Game Boy Camera and Printer.
-Super Game Boy: RTG only, without its own sound; player 2 in its
-two-player games reads as nothing pressed. AGA 030 refuses colour-only
+Super Game Boy: RTG only, without its own sound; players 3 and 4 in
+its multi-player games read as nothing pressed. AGA 030 refuses colour-only
 cartridges and runs dual-mode ones in mono.
 
 Credits

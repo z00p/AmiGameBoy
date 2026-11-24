@@ -43,9 +43,21 @@ ReadCD32Pads:
 
 	SECTION	hycd32,CODE
 HyCD32Kit:
+	IFD	SGB_2P			; two-player Super Game Boy games: port 2 was read already this
+	tst.b	sgb_cdpre		; frame, before the plain reads (sgb.s sgb_pads)
+	beq.s	.rd
+	sf	sgb_cdpre
+	moveq	#0,d0
+	move.w	sgb_cd2,d0
+	bra.s	.got
+.rd:
+	ENDC
 	move.b	HyCD32Low,d1
 	and.b	d0,d1			; the ports asked for on the low clock
 	bsr.s	cd32read
+	IFD	SGB_2P
+.got:
+	ENDC
 	IFD	HY_CD32STAT		; test: the raw nine bits ORed, reads, reads with red,
 	or.l	d0,HyCD32St		; reads with the pad's ID (bit 7 = 0, bit 8 = 1)
 	addq.l	#1,HyCD32St+4		; (AmiGB.result " cd32=")

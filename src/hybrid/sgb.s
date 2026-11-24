@@ -158,6 +158,21 @@ sgb_w00:
 .x:	rts
 .pad:	tst.b	sgb_player		; the other players' pads: nothing pressed
 	beq.s	.x
+	IFD	SGB_2P			; player 2: port 1's pad (sgb_pads), as do_joystick does player 1
+	cmp.b	#1,sgb_player
+	bne.s	.none
+	moveq	#$0f,d6
+	btst	#4,sgb_p1		; P14 low: the directions
+	bne.s	.nd
+	and.b	sgb_p2d,d6
+.nd:	btst	#5,sgb_p1		; P15 low: the buttons
+	bne.s	.nb
+	and.b	sgb_p2b,d6
+.nb:	and.b	#$f0,(a2,d7.l)
+	or.b	d6,(a2,d7.l)
+	rts
+.none:
+	ENDC
 	or.b	#$0f,(a2,d7.l)
 	rts
 
@@ -1333,6 +1348,219 @@ sgb_snap:
 sgb_snapl:	ds.l	1
 sgb_snapn:	ds.l	1
 sgb_snaps:	ds.b	SGB_SNAPSZ*SGB_SNAPMAX
+	ENDC
+
+	IFD	SGB_2P
+; ---- the pads, each Game Boy frame (hybrid_frame, in place of HyPads). One player: HyPads as
+; ever (then ReadCD32Pads reads port 2). Once the game has asked for more (MLT_REQ), port 1
+; (the mouse port) is player 2: both ports' CD32 reads come first, port 2 then port 1 straight
+; after, before any plain read of either port (emu-dev-docs ch05: a plain read of the other port
+; just before a CD32 read can leave a pad in its joystick mode); ReadCD32Pads then takes port 2's
+; answer from here (one read a frame). Player 1's plain read is then port 2's lines only (Juan's
+; LeeJoyStick also takes port 1's two buttons as Select and Start), player 2's is port 1's:
+; directions (JOY0DAT), fire = A, pin 9 = B, the CD32 buttons through the same table as
+; player 1 (HyPadApply, "Red = A" etc.). Port 1's clock: "Pad 2 = CD32 pad | KTRL CD32+" in
+; AmiGameBoy.config (sgb_padcfg; default CD32 pad). Keeps every register.
+	SECTION	sgbpcode,CODE
+sgb_pads:
+	tst.b	sgb_mlt
+	bne.s	.two
+	jmp	HyPads
+.two:	movem.l	d0-d2/a0/a3,-(sp)
+	moveq	#2,d0			; port 2 (player 1) first, as ever
+	move.b	HyCD32Low,d1
+	and.b	d0,d1
+	jsr	cd32read
+	move.w	d0,sgb_cd2
+	moveq	#1,d0			; port 1 (player 2) straight after
+	move.b	HyCD32Low,d1
+	and.b	d0,d1
+	jsr	cd32read
+	IFD	SGB_P2STAT		; test: port 1's nine bits ORed, reads, reads with a CD32 pad's ID,
+	or.l	d1,sgb_p2st		; HyCD32Low (AmiGB.result " p2=")
+	addq.l	#1,sgb_p2st+4
+	move.w	d1,d2
+	and.w	#$180,d2
+	cmp.w	#$100,d2
+	bne.s	.noid
+	addq.l	#1,sgb_p2st+8
+.noid:	move.b	HyCD32Low,sgb_p2st+15	; and the clocks (bit 0: port 1 low)
+	ENDC
+	IFD	SGB_P2FAKE		; test: these port 1 buttons for 6 frames in every 100, from frame 50
+	move.l	HyFrames,d2
+	divu.w	#100,d2
+	swap	d2
+	sub.w	#50,d2
+	cmp.w	#6,d2
+	bcc.s	.nofk
+	or.w	#SGB_P2FAKE,d1
+.nofk:
+	ENDC
+	move.w	d1,sgb_cd1
+	st	sgb_cdpre		; ReadCD32Pads: port 2's answer from sgb_cd2 this frame
+	move.l	JoyControlRut,-(sp)	; player 1's plain read: port 2's lines only
+	move.l	#sgb_joy1,JoyControlRut
+	jsr	HyPads
+	move.l	(sp)+,JoyControlRut
+	lea	sgb_r2,a3		; player 2: a Regs stand-in (EstadoJoy, EstadoKeys = none)
+	move.w	$dff00a,d0		; port 1's directions (JOY0DAT)
+	jsr	LEEJOY
+	not.b	d2
+	move.b	d2,EstadoJoy+2(a3)
+	moveq	#-1,d1
+	btst	#6,$bfe001		; port 1's fire (pin 6): A
+	bne.s	.f1
+	bclr	#0,d1
+.f1:	btst	#2,$dff016		; port 1's pin 9 (POTGO is $FF00 after the reads): B
+	bne.s	.f2
+	bclr	#1,d1
+.f2:	move.b	d1,EstadoJoy+1(a3)
+	moveq	#0,d0
+	move.w	sgb_cd1,d0
+	bsr.s	sgb_cdok
+	jsr	HyPadApply		; the CD32 buttons through the table, over the plain read
+	move.b	EstadoJoy+1(a3),sgb_p2b
+	move.b	EstadoJoy+2(a3),sgb_p2d
+	movem.l	(sp)+,d0-d2/a0/a3
+	rts
+
+; d0.l = a port's nine bits from cd32read -> its seven buttons, 0 for no pad (as HyCD32Kit)
+sgb_cdok:
+	IFD	HY_JOYPAD2		; "Standard Joypad": only a read with a CD32 pad's ID counts
+	IFD	HY_MENU
+	cmp.b	#3,DirPrefs+$08
+	bne.s	.any
+	move.w	d0,d1
+	and.w	#$180,d1
+	cmp.w	#$100,d1
+	beq.s	.any
+	moveq	#0,d0
+.any:
+	ENDC
+	ENDC
+	and.l	#$7f,d0
+	cmp.b	#$7f,d0			; all seven: a plain joystick
+	bne.s	.ok
+	moveq	#0,d0
+.ok:	rts
+
+; player 1's plain read with two players: LeeJoyStick without port 1's lines (d0-d2 used)
+sgb_joy1:
+	lea	Regs,a3
+	move.w	$dff00c,d0		; port 2: JOY1DAT
+	jsr	LEEJOY
+	not.b	d2
+	move.b	d2,EstadoJoy+2(a3)
+	moveq	#0,d1
+	btst	#7,$bfe001		; port 2's fire: A
+	bne.s	.a
+	bset	#0,d1
+.a:	move.w	#$ff00,$dff034
+	nop
+	nop
+	btst	#6,$dff016		; port 2's pin 9: B
+	bne.s	.b
+	bset	#1,d1
+.b:	not.b	d1
+	move.b	d1,EstadoJoy+1(a3)
+	rts
+
+	IFD	HY_MENU
+; "Pad 2 = CD32 pad" / "Pad 2 = KTRL CD32+" in the config text (padcfg.s, after HyCD32Cfg):
+; a0 = text, a1 = its end; any case, blanks around; port 1 on the low clock or not (HyCD32Low
+; bit 0). A line that does not parse changes nothing. Keeps every register.
+sgb_padcfg:
+	movem.l	d0-d1/a0/a2,-(sp)
+.line:	bsr.s	.blank
+	lea	sgb_kpad2,a2
+	bsr.s	.word
+	beq.s	.skip
+	bsr.s	.blank
+	cmp.l	a1,a0
+	bcc.s	.skip
+	cmp.b	#"=",(a0)+
+	bne.s	.skip
+	bsr.s	.blank
+	lea	sgb_kktrl,a2
+	move.l	a0,-(sp)
+	bsr.s	.word
+	beq.s	.notk
+	addq.l	#4,sp
+	bset	#0,HyCD32Low
+	bra.s	.skip
+.notk:	move.l	(sp)+,a0
+	lea	sgb_kcd32,a2
+	bsr.s	.word
+	beq.s	.skip
+	bclr	#0,HyCD32Low
+.skip:	cmp.l	a1,a0			; to the next line
+	bcc.s	.x
+	cmp.b	#10,(a0)+
+	bne.s	.skip
+	bra.s	.line
+.x:	movem.l	(sp)+,d0-d1/a0/a2
+	rts
+.blank:	cmp.l	a1,a0			; a0 over spaces, tabs and CRs
+	bcc.s	.bx
+	move.b	(a0),d0
+	cmp.b	#" ",d0
+	beq.s	.b1
+	cmp.b	#9,d0
+	beq.s	.b1
+	cmp.b	#13,d0
+	bne.s	.bx
+.b1:	addq.l	#1,a0
+	bra.s	.blank
+.bx:	rts
+; the upper-case text at a2 (ends with 0; a space in it matches any blanks) at a0, any case,
+; then not a letter: NE and a0 behind it, or EQ
+.word:	move.b	(a2)+,d1
+	beq.s	.wend
+	cmp.b	#" ",d1
+	bne.s	.wc
+	bsr.s	.blank
+	bra.s	.word
+.wc:	cmp.l	a1,a0
+	bcc.s	.wf
+	move.b	(a0)+,d0
+	cmp.b	#"a",d0
+	bcs.s	.wu
+	cmp.b	#"z",d0
+	bhi.s	.wu
+	sub.b	#32,d0
+.wu:	cmp.b	d0,d1
+	beq.s	.word
+.wf:	moveq	#0,d0			; EQ
+	rts
+.wend:	cmp.l	a1,a0
+	bcc.s	.wok
+	move.b	(a0),d0
+	and.b	#$df,d0
+	cmp.b	#"A",d0
+	bcs.s	.wok
+	cmp.b	#"Z",d0
+	bls.s	.wf
+.wok:	moveq	#1,d0			; NE
+	rts
+	ENDC
+
+	SECTION	sgbpdata,DATA
+sgb_p2b:	dc.b	$ff		; player 2's buttons (A B Select Start) and directions
+sgb_p2d:	dc.b	$ff		; (Right Left Up Down), low active, as buttons_byte
+sgb_cdpre:	dc.b	0		; sgb_cd2 holds this frame's port 2 read
+	even
+sgb_cd2:	dc.w	0		; the CD32 reads (nine bits), port 2 and port 1
+sgb_cd1:	dc.w	0
+sgb_r2:		dcb.b	16,$ff		; player 2's Regs stand-in (EstadoJoy, EstadoKeys)
+	IFD	SGB_P2STAT
+sgb_p2st:	dc.l	0,0,0,0
+	ENDC
+	IFD	HY_MENU
+sgb_kpad2:	dc.b	"PAD 2",0
+sgb_kktrl:	dc.b	"KTRL",0
+sgb_kcd32:	dc.b	"CD32",0
+	even
+	ENDC
 	ENDC
 
 	SECTION	sgbdata,DATA

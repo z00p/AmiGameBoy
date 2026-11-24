@@ -89,6 +89,14 @@ SGB_MENU	SET	1		; its Options menu tick
 SGB_DUAL	SET	1		; dual .gbc carts ($80) with Super Game Boy extras run as on an SGB
 	ENDC
 	ENDC
+	IFD	SGB_P2			; two-player Super Game Boy games: port 1 is player 2 (sgb.s sgb_pads).
+	IFD	SGB_PKT			; Only with SGB_PKT (the RTG program); ignored in the others, which
+SGB_2P		SET	1		; build.sh rel gives the same switches
+	IFND	HY_CD32KIT
+	FAIL	"SGB_P2 needs HY_CD32KIT (cd32read)"
+	ENDC
+	ENDC
+	ENDC
 	IFD	SGB_PKT
 	IFND	GBC_RTG
 	FAIL	"SGB_PKT needs GBC_RTG (the Super Game Boy is RTG only)"
@@ -446,6 +454,9 @@ hybrid_frame:
 	IFD	SGB_PKT			; Super Game Boy: VRAM transfers, the border (sgb.s)
 	jsr	sgb_frame
 	ENDC
+	IFD	HY_PCLOG		; test: the CPU at each frame end, GB:AmiGB.pcl at AutoExit
+	jsr	HyPcLog
+	ENDC
 	IFD	HY_FRAMELOG
 	bsr.w	HyFLogAdd
 	ENDC
@@ -576,7 +587,12 @@ hybrid_frame:
 	move.l	d0,HyBuildMax
 .nomax:
 	ENDC
-.drawn:	jsr	HyPads
+.drawn:
+	IFD	SGB_2P			; two players asked for: port 1 too, the CD32 reads first (sgb.s)
+	jsr	sgb_pads
+	ELSE
+	jsr	HyPads
+	ENDC
 	lea	Regs,a3
 	IFND	NO_CD32			; CD32 pad in port 2 (a plain joystick reads as no pad)
 	moveq	#2,d0
@@ -865,6 +881,9 @@ HyExit:
 	IFD	SGB_DUMP		; test: the Super Game Boy state (sgb.s)
 	jsr	sgb_dump
 	ENDC
+	IFD	HY_PCLOG
+	jsr	HyPcSave
+	ENDC
 	ENDC
 	IFD	HY_FRAMELOG
 	bsr.w	HyFLogSave
@@ -948,6 +967,101 @@ HyFLogSave:
 	move.l	d4,d1
 	jsr	dosClose(a6)
 .x:	rts
+	ENDC
+
+	IFD	HY_PCLOG
+; ---- test: HY_PCLOG = entries (a power of two), one per frame end in a ring: HyFrames, PC, SP,
+; AF (A high), BC, DE, HL, LCDC, STAT, LY, IF, IE, 0, 8 bytes at SP, 2 bytes 0 (32 bytes).
+; GB:AmiGB.pcl at AutoExit: "PCL2", entries written, ring size, the ring, the 64 KB address
+; space, then (GBC_RENDER) the renderer's tables and picture (tools/hy_pcl.py).
+; Engine registers: a0 = PC (host), d0 = DE, d1 = BC, d2 = HL, d3 = F/A, d5 = SP.
+	SECTION	hypclcode,CODE
+HyPcLog:
+	movem.l	d6-d7/a5-a6,-(sp)
+	move.l	HyPclN,d7
+	addq.l	#1,HyPclN
+	and.l	#HY_PCLOG-1,d7
+	lsl.l	#5,d7
+	lea	HyPclBuf,a6
+	add.l	d7,a6
+	move.l	HyFrames,(a6)+
+	move.l	a0,d6
+	sub.l	z80_pc_base,d6
+	move.w	d6,(a6)+
+	move.w	d5,(a6)+
+	move.w	d3,d6
+	ror.w	#8,d6			; A, F
+	move.w	d6,(a6)+
+	move.w	d1,(a6)+
+	move.w	d0,(a6)+
+	move.w	d2,(a6)+
+	lea	GBMEM,a5
+	move.b	$ff40(a5),(a6)+
+	move.b	$ff41(a5),(a6)+
+	move.b	$ff44(a5),(a6)+
+	move.b	$ff0f(a5),(a6)+
+	move.b	$ffff(a5),(a6)+
+	clr.b	(a6)+
+	moveq	#0,d6
+	move.w	d5,d6
+	cmp.l	#$fff8,d6
+	bhi.s	.ns
+	add.l	d6,a5
+	moveq	#8-1,d7
+.s:	move.b	(a5)+,(a6)+
+	dbra	d7,.s
+.ns:	movem.l	(sp)+,d6-d7/a5-a6
+	rts
+HyPcSave:
+	movem.l	d0-d7/a0-a6,-(sp)
+	move.l	HyPclN,HyPclHead+4
+	move.l	HyDosBase,a6
+	move.l	#HyPclName,d1
+	move.l	#MODE_NEWFILE,d2
+	jsr	dosOpen(a6)
+	move.l	d0,d4
+	beq.s	.x
+	move.l	d4,d1
+	move.l	#HyPclHead,d2
+	moveq	#12,d3
+	jsr	dosWrite(a6)
+	move.l	d4,d1
+	move.l	#HyPclBuf,d2
+	move.l	#HY_PCLOG*32,d3
+	jsr	dosWrite(a6)
+	move.l	d4,d1
+	move.l	#GBMEM,d2
+	move.l	#$10000,d3
+	jsr	dosWrite(a6)
+	IFD	GBC_RENDER		; then gbc_vram, gbc_rgb, gbc_dmgreg, gbc_pixfmt, the picture
+	lea	.blk(pc),a2
+.b:	move.l	(a2)+,d2
+	beq.s	.c
+	move.l	(a2)+,d3
+	move.l	d4,d1
+	jsr	dosWrite(a6)
+	bra.s	.b
+	ENDC
+.c:	move.l	d4,d1
+	jsr	dosClose(a6)
+.x:	movem.l	(sp)+,d0-d7/a0-a6
+	rts
+	IFD	GBC_RENDER
+.blk:	dc.l	gbc_vram,$4000,gbc_rgb,256,gbc_dmgreg,4,gbc_pixfmt,4,gbc_fb,160*144*2
+	IFD	SGB_COL			; and the Super Game Boy's line tables
+	dc.l	sgb_lut,512,sgb_attr,360
+	ENDC
+	dc.l	0
+	ENDC
+	SECTION	hypcldata,DATA
+HyPclName:	dc.b	"GB:AmiGB.pcl",0
+	even
+HyPclHead:	dc.b	"PCL2"
+	dc.l	0,HY_PCLOG
+	SECTION	hypclbss,BSS
+HyPclN:		ds.l	1
+HyPclBuf:	ds.b	HY_PCLOG*32
+	SECTION	hybrid,CODE
 	ENDC
 
 	IFD	GBC_RENDER
@@ -1060,6 +1174,15 @@ HyResult:
 	bsr.s	.hex8
 	addq.l	#1,a0
 	dbra	d3,.cd
+	ENDC
+	IFD	SGB_P2STAT		; test: port 1's CD32 read in two-player games (sgb.s)
+	lea	HyResP2,a0
+	lea	sgb_p2st,a1
+	moveq	#4-1,d3
+.p2:	move.l	(a1)+,d0
+	bsr.s	.hex8
+	addq.l	#1,a0
+	dbra	d3,.p2
 	ENDC
 	IFD	GBC_APROF		; the test rows' run totals (whole windows), TOD lines
 	lea	gbc_qtot,a1
@@ -1344,6 +1467,10 @@ HyResWr:	dc.b	"00000000 00000000 00000000 00000000"
 	IFD	HY_CD32STAT		; raw nine bits ORed, reads, reads with red, reads with the ID
 	dc.b	" cd32="
 HyResCd:	dc.b	"00000000 00000000 00000000 00000000"
+	ENDC
+	IFD	SGB_P2STAT		; port 1: nine bits ORed, reads, reads with the ID, HyCD32Low
+	dc.b	" p2="
+HyResP2:	dc.b	"00000000 00000000 00000000 00000000"
 	ENDC
 	IFD	GBC_APROF		; (each name 4 letters: HyResult steps 6 after a number)
 	dc.b	" emu_="

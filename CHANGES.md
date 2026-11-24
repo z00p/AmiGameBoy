@@ -1,5 +1,66 @@
 # Changes
 
+## 2.4
+
+AmiGameBoy 2.4, community version: a Game Boy and Game Boy Color emulator for AGA
+Amigas, on the AGA screen or a graphics board. By Juan Antonio Gómez Gálvez
+(AmiGameBoy: menu and display), Ville Helin (Wzonka-Lad: the Game Boy engine)
+and z00p (community version: sound, Game Boy Color, Super Game Boy). Also on
+Aminet: misc/emu/AmiGameBoyCE.lha.
+
+**Three programs** (as in 2.3)
+- **AGA**: Game Boy and Game Boy Color on the AGA screen, for fast machines
+  (PiStorm, BigMig, 68060 cards).
+- **AGA 030**: Game Boy only, for an A1200 with a 68030/50.
+- **RTG**: Game Boy and Game Boy Color on a 16-bit Picasso96 screen, with the
+  Super Game Boy.
+
+**What is new**
+- **Player 2 in two-player Super Game Boy games** (RTG): once a game asks for
+  two pads (Wario Blast, Bomberman GB and others), player 2 is read from port 1,
+  the mouse port: a CD32 pad or a joystick (fire = A, second button = B, CD32
+  buttons as set for player 1). Player 1 stays on port 2 and the keyboard.
+  Unplug the mouse first, or player 2 drifts.
+- **"Pad 2 = CD32 pad | KTRL CD32+"** in AmiGameBoy.config: how the pad in port 1
+  is read, as the Pad line does for port 2. Without the line, CD32 pad; add
+  Pad 2 = KTRL CD32+ for a Mega Multi or similar adapter.
+- **AGA and AGA 030**: unchanged from 2.3 apart from the version text.
+
+**Upgrading from 2.3**: unpack over it. AmiGameBoy.config and the saves are
+kept.
+
+**Requirements**: as 2.3. AGA and AmigaOS 3.0 or later. AGA 030: 68020 or
+better, a 68030/50 for full speed. AGA and RTG: a PiStorm-class machine; RTG
+also needs Picasso96 and a 16-bit screen mode.
+
+**Not supported**: cartridges over 2 MB, the link cable, the Game Boy Camera and
+Printer. The Super Game Boy's own sound; players 3 and 4 in its multi-player
+games. AGA 030 refuses colour-only cartridges and runs dual-mode ones in mono.
+AGA: more than 255 colours in one picture are capped (rare).
+
+**Known issues**: none.
+
+**Tested** on an A1200 with a PiStorm (RTG): a two-pad test cartridge with a
+KTRL CD32 pad in port 1 and a PlayStation pad on a CD32 adapter in port 2, a
+two-player battle in Wario Blast, Link's Awakening DX in one player. In WinUAE
+(RTG): the Super Game Boy test cartridge (27/27), Pokémon Red and Yellow, Link's
+Awakening DX, Mole Mania (option on and off), GB Corp, Wario Blast and KOF '95
+give the same pictures as 2.3; the Pad 2 line.
+
+**Install**: unpack AmiGameBoy-2.4.lha and start AGA, AGA 030 or RTG in the
+AmiGameBoy drawer. ReadMe.txt and AmiGameBoy.guide have the keys, the pad, the
+settings and the saves. No games are included: use cartridge images you may
+legally have.
+
+**Credits**: Juan Antonio Gómez Gálvez (AmiGameBoy: menu and display), Ville
+Helin (Wzonka-Lad: the Game Boy engine) and z00p (community version, sound,
+Game Boy Color, Super Game Boy); Multivac (icons and graphics in Juan's
+original), Ventzislav Tzvetkov (later small fixes to Wzonka-Lad),
+Afrotechmods / FAmiga (CD32 pad read).
+
+**Problems**: please open an issue with the game, the program (AGA, AGA 030 or
+RTG), your machine and what you saw.
+
 ## 2.3
 
 AmiGameBoy 2.3, community version: a Game Boy and Game Boy Color emulator for AGA

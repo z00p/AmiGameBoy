@@ -109,6 +109,10 @@ HY_RCFG	SET	1
 	move.l	sp,a0
 	jsr	HyCD32Cfg
 	ENDC
+	IFD	SGB_2P			; "Pad 2 = CD32 pad | KTRL CD32+": port 1 (sgb.s)
+	move.l	sp,a0
+	jsr	sgb_padcfg
+	ENDC
 .read:	lea	PADBUF(sp),sp
 	bra.s	.done
 .new:	move.l	#HyPadCfgName,d1	; none: write the defaults, to be edited

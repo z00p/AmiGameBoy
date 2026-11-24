@@ -1,6 +1,6 @@
 # AmiGameBoy
 
-**AmiGameBoy 2.3, community version** (24 November 2026). Download: the LhA archive on the [Releases](https://github.com/z00p/AmiGameBoy/releases) page, or Aminet misc/emu/AmiGameBoyCE.lha.
+**AmiGameBoy 2.4, community version** (24 November 2026). Download: the LhA archive on the [Releases](https://github.com/z00p/AmiGameBoy/releases) page, or Aminet misc/emu/AmiGameBoyCE.lha.
 
 AmiGameBoy is a Game Boy and Game Boy Color emulator for AGA Amigas, in
 68020+ assembly. It plays .gb and .gbc cartridges with sound, battery
@@ -99,6 +99,9 @@ from the next Power ON). One setting a line:
   Pad = CD32 pad how the CD32 pad is read. CD32 pad is the usual way;
                  KTRL CD32+ is another way for pads and adapters whose
                  buttons flicker or drop out with the first.
+  Pad 2 = CD32 pad  RTG, two-player Super Game Boy games: the same
+                 choice for the pad in port 1 (player 2). Not in the
+                 file unless you add it; without it, CD32 pad.
   Blend = On     RTG: each picture mixed with the one before, as the
                  LCD did, so games that flicker sprites look steady.
   Bezel = On     RTG: a screen surround round the picture.
@@ -142,8 +145,14 @@ Super Game Boy extras run as a real Super Game Boy runs them: in mono,
 with its colours and border. Untick Super Game Boy to play them as a
 Game Boy Color game.
 
-The Super Game Boy's own sound is not played. In two-player Super Game
-Boy games player 2 reads as nothing pressed.
+Two-player Super Game Boy games (Wario Blast, Bomberman GB and others)
+read player 2 from port 1, the mouse port: a CD32 pad or a joystick
+(fire = A, second button = B). Unplug the mouse first, or player 2
+drifts. Player 1 stays on port 2 and the keyboard. With a Mega Multi
+or similar adapter in port 1, add the line Pad 2 = KTRL CD32+. Players
+3 and 4 read as nothing pressed.
+
+The Super Game Boy's own sound is not played.
 
 ## Battery saves
 A game that saves keeps its battery RAM in a .sav file beside the
@@ -164,7 +173,7 @@ Red. Save Prefs writes the settings to S:AmiGameBoy.prefs.
 - Cartridges over 2 MB (refused).
 - The link cable, the Game Boy Camera and the Game Boy Printer.
 - AGA and AGA 030: Super Game Boy features. RTG: the Super Game Boy's
-  own sound, and player 2 in its two-player games.
+  own sound, and players 3 and 4 in its multi-player games.
 - From the original menu, not connected in this version: frozen games
   (snapshots), cheats and the monitor. Keyboard, joystick and CD32 pad
   are always active, whatever the Joy type (Standard Joypad: see the
@@ -214,6 +223,8 @@ game back to the menu.
 Version 2.3 adds the Super Game Boy to the RTG program: the colours
 and borders of cartridges made for it, with a tick in the Options menu
 to turn it off.
+Version 2.4 reads player 2 from port 1 in two-player Super Game Boy
+games.
 
 ## Source and building
 
