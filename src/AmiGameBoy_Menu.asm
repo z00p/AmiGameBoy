@@ -77,6 +77,9 @@ YaStc20:
 	MOVE.L	(A0),D1
 	JSR	-$7E(A6)
 CLI:
+	IFD	GBC_BIGMENU
+	JSR	bm_init			; the big RTG menu (bigmenu.s): DOS is safe now
+	ENDC
 ; <=----------------------------------=>
 
 	LEA	DirInfoText(PC),A0
@@ -300,6 +303,9 @@ CabFileBuf:	DS.L	4
 Programa:
 ; ------------------------------------------
 	BSR	LoadPrefs
+	IFD	GBC_JOYCFG
+	JSR	bm_joyload		; hybrid: "Joy type" in AmiGameBoy.config wins (bigmenu.s)
+	ENDC
 	BSR	PonPrefs
 ; ------------------------------------------
 	BSR	SetupScreen
@@ -336,7 +342,11 @@ Programa:
 	MOVE.L	50(A0),A0
 	LEA	DatsGameBoyPic,A1
 	MOVE.L	_IntuitionBase,A6
+	IFD	GBC_BIGMENU
+	JSR	bm_drawimage		; the big RTG menu (hybrid/bigmenu.s)
+	ELSE
 	JSR	-114(A6)
+	ENDC
 ; ------------------------------------------
 	BSR	ImpJoyType
 ; ------------------------------------------
@@ -403,6 +413,9 @@ EsNTSC2:MOVE.W	D1,$DFF1DC
 NoChangeCon:
 ; ------------------------------------------
 Quitar:	JSR	CloseDownScreen
+	IFD	GBC_BIGMENU
+	JSR	bm_exit			; the big RTG menu: its font and pictures
+	ENDC
 	IFD	HY_LUPA
 	JSR	LupaShowErr		; hybrid: a load error (ONEGAME) on Workbench (hybrid/lupa.s)
 	ENDC
@@ -504,7 +517,11 @@ ImprHelpJoy:
 	MOVE.L	50(A0),A0
 	LEA	DatsJoyTypePic,A1
 	MOVE.L	_IntuitionBase,A6
+	IFD	GBC_BIGMENU
+	JMP	bm_drawimage		; the big RTG menu (hybrid/bigmenu.s)
+	ELSE
 	JMP	-114(A6)
+	ENDC
 
 ; ------------------------------------------
 ; ******************************************
@@ -547,7 +564,11 @@ ImpErrorBuc:
 	LEA	DatsErrorPic,A1
 	MOVE.L	A2,10(A1)
 	MOVE.L	_IntuitionBase,A6
+	IFD	GBC_BIGMENU
+	JSR	bm_drawimage		; the big RTG menu (hybrid/bigmenu.s)
+	ELSE
 	JSR	-114(A6)
+	ENDC
 
 	LEA	ImpErrorPunts,A1
 	BSR	Control
@@ -1678,7 +1699,11 @@ ImpJoyType:
 	MOVE.L	50(A0),A0
 	LEA	DatsJoyTypePic,A1
 	MOVE.L	_IntuitionBase,A6
+	IFD	GBC_BIGMENU
+	JMP	bm_drawimage		; the big RTG menu (hybrid/bigmenu.s)
+	ELSE
 	JMP	-114(A6)
+	ENDC
 	CNOP	0,4
 TabGfxJoyType:
 	DC.L	GBJoyStick
@@ -2940,7 +2965,11 @@ MIRACEROB:
 	TST.B	(A1)+
 	BNE.S	MIRACEROB
 	SUBQ.W	#1,D0
+	IFD	GBC_BIGMENU
+	MULU.W	bm_chw,D0		; the big RTG menu: its font's character width
+	ELSE
 	LSL.W	#3,D0
+	ENDC
 	SUB.W	D0,D1
 	LSR.W	#1,D1
 	ADD.W	D2,D1
@@ -3269,14 +3298,23 @@ MenuOptions:
 	DC.L	ControlRET		; Ask for Reset
 	DC.L	ControlRET		; -----
 	IFD	GBC_RMENU
+	IFD	GBC_BIGLAYOUT		; hybrid: the ticks kept in step with the big menu's lists
+	DC.L	bm_mbez			; Bezel (hybrid/bigmenu.s, then rmenu.s)
+	DC.L	bm_mscan		; Scanlines
+	ELSE
 	DC.L	gbc_rmbez		; hybrid: Bezel (RTG, hybrid/rmenu.s)
 	DC.L	gbc_rmscan		; hybrid: Scanlines
+	ENDC
 	ENDC
 	IFD	GBC_CCMENU
 	DC.L	gbc_rmcc		; hybrid: LCD Colours (AGA, RTG, hybrid/rmenu.s)
 	ENDC
 	IFD	SGB_MENU
+	IFD	GBC_BIGLAYOUT
+	DC.L	bm_msgb			; Super Game Boy (hybrid/bigmenu.s, then rmenu.s)
+	ELSE
 	DC.L	gbc_rmsgb		; hybrid: Super Game Boy (RTG, hybrid/rmenu.s)
+	ENDC
 	ENDC
 
 SubMenuCPU:
@@ -3334,8 +3372,16 @@ MainMenuPunts:
 	DC.L	GD_PowerON,PowerON
 	DC.L	GD_Continue,Continue
 	DC.L	GD_Exit,ControlSalir
+	IFD	GBC_JOYCFG
+	DC.L	GD_JoyType,bm_gjoy	; hybrid: also into AmiGameBoy.config (bigmenu.s)
+	ELSE
 	DC.L	GD_JoyType,ImpJoyType
+	ENDC
 	DC.L	GD_HelpPage,HelpPage
+	IFD	GBC_BIGLAYOUT		; hybrid: the big RTG menu's Surround and Scanlines (bigmenu.s)
+	DC.L	GD_Veloz,bm_gsur
+	DC.L	GD_Scan,bm_gscan
+	ENDC
 	DC.L	0,0
 MainMenuValues:
 	DC.W	GD_JoyType,0

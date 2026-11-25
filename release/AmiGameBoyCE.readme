@@ -21,8 +21,9 @@ There are three programs:
             machines (PiStorm, BigMig, 68060 cards).
   AGA 030   Game Boy only, for an A1200 with a 68030/50.
   RTG       Game Boy and Game Boy Color on a 16-bit Picasso96 screen,
-            with a screen surround, and the Super Game Boy's colours
-            and borders for cartridges made for it.
+            with a screen surround, the Super Game Boy's colours
+            and borders for cartridges made for it, and a big menu
+            on 1920x1080 and 1280x720 screens.
 
 History
 -------
@@ -32,6 +33,12 @@ on. This community version, released with his consent, keeps his menu
 and his AGA display and runs the games on the Game Boy engine of
 Wzonka-Lad by Ville Helin (GPL-2).
 
+2.5   RTG: a big menu on 1920x1080 (else 1280x720) Picasso96 screens,
+      Juan's layout in a 4:3 area with a clear font and a redrawn logo
+      and controller pictures ("Menu = Classic" for the old one);
+      Surround (Off / Bezel / Auto) and Scanlines in its Screen
+      Options. The Joy type is kept in AmiGameBoy.config as soon as
+      it is picked.
 2.4   Two-player Super Game Boy games read player 2 from port 1 (a
       CD32 pad or a joystick); "Pad 2 = KTRL CD32+" for adapters.
 2.3   Super Game Boy in the RTG program: the colours and the whole
@@ -70,7 +77,8 @@ Requirements
 - An AGA Amiga with AmigaOS 3.0 or later.
 - AGA 030: a 68020 or better; a 68030 at 50 MHz for full speed.
 - AGA and RTG: a much faster machine (a PiStorm runs colour games at
-  full speed). RTG also needs Picasso96 and a 16-bit screen mode.
+  full speed). RTG also needs Picasso96 and a 16-bit screen mode;
+  its big menu a 1920x1080 or 1280x720 mode (else the classic menu).
 - Memory: about twice the cartridge's size plus 256 KB.
 
 Installation

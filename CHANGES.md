@@ -1,5 +1,80 @@
 # Changes
 
+## 2.5
+
+AmiGameBoy 2.5, community version: a Game Boy and Game Boy Color emulator for AGA
+Amigas, on the AGA screen or a graphics board. By Juan Antonio Gómez Gálvez
+(AmiGameBoy: menu and display), Ville Helin (Wzonka-Lad: the Game Boy engine)
+and z00p (community version: sound, Game Boy Color, Super Game Boy). Also on
+Aminet: misc/emu/AmiGameBoyCE.lha.
+
+**Three programs** (as in 2.4)
+- **AGA**: Game Boy and Game Boy Color on the AGA screen, for fast machines
+  (PiStorm, BigMig, 68060 cards).
+- **AGA 030**: Game Boy only, for an A1200 with a 68030/50.
+- **RTG**: Game Boy and Game Boy Color on a 16-bit Picasso96 screen, with the
+  Super Game Boy.
+
+**What is new** (RTG)
+- **Big menu**: with a 1920x1080 Picasso96 mode (else 1280x720) the menu opens
+  on a screen of that size: Juan's layout in a 4:3 area at the top, drawn at
+  the screen's own sharpness, with a clear font and a redrawn logo and
+  controller pictures. With neither mode, or with the line Menu = Classic in
+  AmiGameBoy.config, the menu is as in 2.4. Games use the same screen modes as
+  before.
+- **Surround and Scanlines in the menu** (big menu): the Emulation Speed box
+  (never active) is gone; Screen Options has Surround (Off / Bezel / Auto) and
+  Scanlines (Off / On). Off: no bezel, no Super Game Boy. Bezel: the bezel,
+  Super Game Boy off. Auto, the default: Super Game Boy cartridges with their
+  own border and colours, the rest with the bezel. Both follow the Options menu
+  and are kept in the Bezel and Super Game Boy lines of AmiGameBoy.config.
+- **Options menu ticks in step** (big menu): ticking Super Game Boy ticks Bezel;
+  unticking Bezel unticks Super Game Boy.
+- **Joy type remembered**: picking a Joy type writes the line
+  "Joy type = Amiga JoyStick | Keyboard Only | CD32 Joypad | Standard Joypad" to
+  AmiGameBoy.config at once. At start that line wins over S:AmiGameBoy.prefs.
+  Save Prefs works as before. Big and classic menu.
+- **AGA and AGA 030**: unchanged from 2.4 apart from the version text.
+
+**Upgrading from 2.4**: unpack over it. AmiGameBoy.config and the saves are
+kept. A config with Super Game Boy = Auto and Bezel = Off shows as Surround
+Auto in the big menu, with the bezel on.
+
+**Requirements**: as 2.4. AGA and AmigaOS 3.0 or later. AGA 030: 68020 or
+better, a 68030/50 for full speed. AGA and RTG: a PiStorm-class machine; RTG
+also needs Picasso96 and a 16-bit screen mode. Big menu: a 1920x1080 or
+1280x720 Picasso96 mode and the graphics memory for a screen of it.
+
+**Not supported**: cartridges over 2 MB, the link cable, the Game Boy Camera and
+Printer. The Super Game Boy's own sound; players 3 and 4 in its multi-player
+games. AGA 030 refuses colour-only cartridges and runs dual-mode ones in mono.
+AGA: more than 255 colours in one picture are capped (rare).
+
+**Known issues**: none.
+
+**Tried on real hardware**: an A1200 with a PiStorm (RTG), test builds of this
+menu at 1920x1080 and 1280x720, both opening cleanly. With Wario Land II and
+Tetris: the layout, Surround (Off, Bezel, Auto), Scanlines and the Options menu
+ticks, with the settings kept after a restart.
+
+**Tested in WinUAE** (RTG): Joy type kept in AmiGameBoy.config and read back at
+start (1920x1080 and 1280x720); the 1280x720 menu when there is no 1920x1080
+screen; the menu clicks, Options menu picks and config lines of the layout.
+
+**Install**: unpack AmiGameBoy-2.5.lha and start AGA, AGA 030 or RTG in the
+AmiGameBoy drawer. ReadMe.txt and AmiGameBoy.guide have the keys, the pad, the
+settings and the saves. No games are included: use cartridge images you may
+legally have.
+
+**Credits**: Juan Antonio Gómez Gálvez (AmiGameBoy: menu and display), Ville
+Helin (Wzonka-Lad: the Game Boy engine) and z00p (community version, sound,
+Game Boy Color, Super Game Boy, big menu); Multivac (icons and graphics in
+Juan's original), Ventzislav Tzvetkov (later small fixes to Wzonka-Lad),
+Afrotechmods / FAmiga (CD32 pad read).
+
+**Problems**: please open an issue with the game, the program (AGA, AGA 030 or
+RTG), your machine and what you saw.
+
 ## 2.4
 
 AmiGameBoy 2.4, community version: a Game Boy and Game Boy Color emulator for AGA

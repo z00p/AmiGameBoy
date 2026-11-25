@@ -127,7 +127,12 @@ GD_PrefsSave                           EQU    10
 GD_PrefsUse                            EQU    11
 GD_PrefsCancel                         EQU    12
 
+	IFD	GBC_BIGLAYOUT		; hybrid: the big RTG menu's layout, a Scanlines cycle (hybrid/bigmenu.s)
+MainMenu_CNT    EQU    11
+GD_Scan                                EQU    10
+	ELSE
 MainMenu_CNT    EQU    10
+	ENDC
 ImpError_CNT    EQU    1
 HelpPage_CNT    EQU    1
 About_CNT    EQU    2
@@ -213,7 +218,7 @@ MTags0:
 MTags1:
     DC.L    $80080031,topaz8,$00000000
 MainMenuGadgets:
-    DCB.L    10,0
+    DCB.L    MainMenu_CNT,0
 ImpErrorGadgets:
     DCB.L    1,0
 HelpPageGadgets:
@@ -385,6 +390,9 @@ MainMenuGTypes:
     DC.W    11
     DC.W    1
     DC.W    7
+	IFD	GBC_BIGLAYOUT
+    DC.W    7
+	ENDC
 
 ImpErrorGTypes:
     DC.W    1
@@ -516,6 +524,12 @@ MainMenuNGads:
     DC.L    JoyTypeText,0
     DC.W    GD_JoyType
     DC.L    $0021,0,0
+	IFD	GBC_BIGLAYOUT		; (made only in the big layout: bm_mmcnt)
+    DC.W    497,144,100,13
+    DC.L    bm_scantext,0
+    DC.W    GD_Scan
+    DC.L    $0021,0,0
+	ENDC
 
 ImpErrorNGads:
     DC.W    101,40,99,15
@@ -816,6 +830,10 @@ MainMenuGTags:
     DC.L    $8008000E,JoyTypeLabels
     DC.L    $8008000F,3
     DC.L    $00000000
+	IFD	GBC_BIGLAYOUT
+    DC.L    $00000002,bm_scantags	; TAG_MORE
+    DC.L    $00000000
+	ENDC
 
 
 VelozFormat:
@@ -5240,7 +5258,11 @@ MainMenuTL:
 MainMenuDN:
     addq.w  #4,a4
     addq.w  #1,d3
+	IFD	GBC_BIGLAYOUT
+    cmp.w   bm_mmcnt,d3		; 10, or 11 in the big layout
+	ELSE
     cmp.w   #MainMenu_CNT,d3
+	ENDC
     bmi     MainMenuGL
     movem.w (sp)+,d2-d3
     move.l  MainMenuGList,MainMenuWG+4

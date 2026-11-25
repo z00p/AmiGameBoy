@@ -1,6 +1,6 @@
 # AmiGameBoy
 
-**AmiGameBoy 2.4, community version** (24 November 2026). Download: the LhA archive on the [Releases](https://github.com/z00p/AmiGameBoy/releases) page, or Aminet misc/emu/AmiGameBoyCE.lha.
+**AmiGameBoy 2.5, community version** (25 November 2026). Download: the LhA archive on the [Releases](https://github.com/z00p/AmiGameBoy/releases) page, or Aminet misc/emu/AmiGameBoyCE.lha.
 
 AmiGameBoy is a Game Boy and Game Boy Color emulator for AGA Amigas, in
 68020+ assembly. It plays .gb and .gbc cartridges with sound, battery
@@ -21,8 +21,9 @@ There are three programs. All three have the same menu.
             68030/50 and other machines too slow for colour.
   RTG       Game Boy and Game Boy Color on a graphics board (a 16-bit
             Picasso96 screen mode), with the screen surround on, and
-            the Super Game Boy's colours and borders. For PiStorm RTG,
-            BigMig and other graphics boards.
+            the Super Game Boy's colours and borders, and a big menu
+            on 1920x1080 and 1280x720 screens. For PiStorm RTG, BigMig
+            and other graphics boards.
 ```
 
 Mono cartridges look the same in AGA and AGA 030 (Juan's display);
@@ -37,6 +38,9 @@ AGA 030 is the program to start now (AGA is the colour one).
   games at full speed).
 - RTG: Picasso96 and a 16-bit screen mode. The program picks the mode
   itself (960x540 first, then 640x480, then the smallest that fits).
+  The big menu needs a 1920x1080 or 1280x720 Picasso96 mode and the
+  graphics memory for a screen of it; without them the menu is the
+  classic one.
 - Memory: about twice the size of the cartridge plus 256 KB, fast RAM
   for preference (a 1 MB cartridge needs about 2.3 MB free). The RTG
   program takes about 100 KB more.
@@ -71,7 +75,8 @@ Joystick in port 2: fire = A, second fire = B. Use the keyboard for the
 other buttons. With a two-button joystick or pad, set Joy type to
 Standard Joypad in the menu: the second fire can then never be taken
 for CD32 pad buttons. A CD32 pad still works with that setting; if a
-pad adapter loses its buttons with it, pick another Joy type.
+pad adapter loses its buttons with it, pick another Joy type. The RTG
+program remembers the Joy type you pick (see the settings file).
 
 CD32 pad in port 2:
 ```
@@ -90,7 +95,9 @@ editor; delete it to get the defaults back. Bezel, Scanlines and Super
 Game Boy are in the RTG program's Options menu too, and LCD Colours in
 the AGA and RTG programs' Options menu: a tick there changes the line
 in the file (the bezel shows from the next Continue, Super Game Boy
-from the next Power ON). One setting a line:
+from the next Power ON). In the RTG big menu, Surround and Scanlines
+in Screen Options set the same lines (see The menu). One setting a
+line:
 
 ```
   Red = A        what a pad button does. Buttons: Red, Blue, Green,
@@ -116,6 +123,12 @@ from the next Power ON). One setting a line:
                  and border of cartridges made for it; Off gives the
                  plain Game Boy look. A file from 2.2 or before has no
                  such line, so Auto. See Super Game Boy below.
+  Joy type = Keyboard Only  RTG: the menu's Joy type (Amiga JoyStick,
+                 Keyboard Only, CD32 Joypad or Standard Joypad). Written
+                 when you pick one in the menu; it wins over the one
+                 saved by Save Prefs. Without the line, Save Prefs' one.
+  Menu = Classic RTG: the classic menu even where the big one would
+                 open. Not in the file unless you add it.
 ```
 
 CD32 pads tried on an A1200: a KTRL CD32 with "CD32 pad"; a Mega Multi
@@ -138,7 +151,9 @@ game is drawn a size smaller where it would not fit).
 Options menu, Super Game Boy: ticked (the default) is Auto, unticked
 is Off, the plain Game Boy look. The tick writes the line
 Super Game Boy = Auto (or Off) in AmiGameBoy.config and counts from
-the next Power ON.
+the next Power ON. In the big menu, Surround sets the bezel and Super
+Game Boy together (see The menu), and the ticks keep in step: ticking
+Super Game Boy ticks Bezel, unticking Bezel unticks Super Game Boy.
 
 Cartridges made for both the Game Boy and the Game Boy Color that have
 Super Game Boy extras run as a real Super Game Boy runs them: in mono,
@@ -167,6 +182,35 @@ from inside a game.
 LCD fade is the choice of palette for mono games: Grey, Green, Blue or
 Red. Save Prefs writes the settings to S:AmiGameBoy.prefs.
 
+Big menu (RTG): with a 1920x1080 Picasso96 mode, else a 1280x720 one,
+the RTG program opens the menu on a screen of that size: the same menu
+in a 4:3 area at the top of the screen, drawn at the screen's own
+sharpness with a clear font and a redrawn logo and controller pictures.
+Games play in the same screen modes as before. Without either mode,
+or with the line Menu = Classic in AmiGameBoy.config, the menu is the
+classic one. The mouse pointer keeps its normal size (small at
+1920x1080).
+
+The big menu's Screen Options has two more settings in place of the
+Emulation Speed box (never active):
+```
+  Surround   Off: no bezel and no Super Game Boy, the plain Game Boy
+             look. Bezel: the screen surround, Super Game Boy off.
+             Auto (the default): cartridges made for the Super Game
+             Boy with its colours and border, the rest with the bezel.
+             Kept as the Bezel and Super Game Boy lines of
+             AmiGameBoy.config (Off: both Off; Bezel: Bezel = On and
+             Super Game Boy = Off; Auto: Bezel = On and Super Game
+             Boy = Auto). A file with Super Game Boy = Auto and
+             Bezel = Off shows as Auto, with the bezel on.
+  Scanlines  Off or On, the Scanlines line.
+```
+Both follow the Options menu ticks and the other way round.
+
+Joy type (RTG, big and classic menu): the one you pick is kept at once
+in AmiGameBoy.config (Joy type line) and comes back the next time the
+program starts, without Save Prefs.
+
 ## Not supported
 - AGA 030: Game Boy Color-only cartridges (refused with a message);
   dual-mode cartridges run in mono.
@@ -194,7 +238,8 @@ AmiGameBoy is free software under the GNU General Public License,
 version 2 (see COPYING). It comes with no warranty. Juan's code is used
 and relicensed with his consent; Wzonka-Lad is GPL-2. The CD32 pad
 reader (cd32pad.s, cd32read.s) is under the MIT licence, see
-cd32pad.LICENSE in the source.
+cd32pad.LICENSE in the source, and so is the big menu kit (rtgmenu.s),
+see rtgmenu.LICENSE.
 
 The full source is in the Source drawer (see its ReadMe.txt), and at
 https://github.com/z00p/AmiGameBoy where problems can be reported too:
@@ -225,13 +270,18 @@ and borders of cartridges made for it, with a tick in the Options menu
 to turn it off.
 Version 2.4 reads player 2 from port 1 in two-player Super Game Boy
 games.
+Version 2.5 gives the RTG program a big menu on 1920x1080 and 1280x720
+screens, with Surround and Scanlines in it, and keeps the Joy type in
+AmiGameBoy.config.
 
 ## Source and building
 
 ```
 Licence: GNU GPL version 2 (COPYING). The CD32 pad reader
 (src/hybrid/cd32pad.s, and cd32read.s with FAmiga's changes by
-Afrotechmods) is under the MIT licence (src/hybrid/cd32pad.LICENSE).
+Afrotechmods) is under the MIT licence (src/hybrid/cd32pad.LICENSE), and
+so is the big RTG menu kit (src/hybrid/rtgmenu.s, rtgmenu_data.s and the
+fonts data/rmfont_*.bin, data/rmmark_*.bin: src/hybrid/rtgmenu.LICENSE).
 
   src/                 Juan Antonio Gómez Gálvez's AmiGameBoy (menu,
                        GadToolsBox window code, graphics in data/)
@@ -241,7 +291,9 @@ Afrotechmods) is under the MIT licence (src/hybrid/cd32pad.LICENSE).
                        engine, sound, CD32 pad, the menu's glue, and
                        Game Boy Color (gbc_*.s: the colour engine, the
                        line renderer, the AGA and RTG displays), the
-                       Super Game Boy (sgb.s, RTG only)
+                       Super Game Boy (sgb.s, RTG only), the big
+                       RTG menu (bigmenu.s on rtgmenu.s; redrawn
+                       pictures in data/hires_*.bin)
   build.sh             the build script
   tools/embed_rom.py   for the test builds with a cartridge inside
 

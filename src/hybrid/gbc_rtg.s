@@ -1109,3 +1109,7 @@ gbc_rkon:	dc.b	"ON",0
 gbc_rkoff:	dc.b	"OFF",0
 	even
 	ENDC
+
+	IFD	GBC_BIGMENU
+	include	"bigmenu.s"		; the big RTG menu (prototype, 24 Nov 2026)
+	ENDC

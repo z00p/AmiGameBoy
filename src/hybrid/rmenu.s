@@ -38,6 +38,9 @@ ClearMenuStripI	=-54
 	SECTION	gbcrmcode,CODE
 gbc_rmsync:
 	movem.l	d0-d3/a0-a2/a6,-(sp)
+	IFD	GBC_BIGLAYOUT
+	jsr	bm_lsync		; the big menu's lists (and Super Game Boy without the bezel: Auto)
+	ENDC
 	move.l	MainMenuWnd,d2
 	beq.s	.x
 	move.l	_IntuitionBase,a6
@@ -151,8 +154,8 @@ gbc_rmsgb:
 	rts
 	ENDC
 
-; the line "<a3> = On|Off" (d7.b 1|0; GBC_CCMENU: 3|2 = LCD|Raw; SGB_MENU: 5|4 = Auto|Off) into
-; PROGDIR:AmiGameBoy.config
+; the line "<a3> = On|Off" (d7.b 1|0; GBC_CCMENU: 3|2 = LCD|Raw; SGB_MENU: 5|4 = Auto|Off;
+; GBC_JOYCFG: 8-11 the Joy type) into PROGDIR:AmiGameBoy.config
 gbc_rmsave:
 	sub.l	a1,a1
 	move.l	4.w,a6
@@ -241,7 +244,17 @@ gbc_rmsave:
 	cmp.b	#10,-1(a4)
 	beq.s	.add
 	move.b	#10,(a4)+
-.add:	move.l	a3,a0
+.add:
+	IFD	GBC_JOYCFG		; the Joy type line: its comment first (bigmenu.s)
+	cmp.l	#bm_joyname,a3
+	bne.s	.ac
+	lea	bm_joycmt,a0
+.ac1:	move.b	(a0)+,(a4)+
+	bne.s	.ac1
+	subq.l	#1,a4
+.ac:
+	ENDC
+	move.l	a3,a0
 .a1:	move.b	(a0)+,(a4)+
 	bne.s	.a1
 	subq.l	#1,a4
@@ -268,6 +281,17 @@ gbc_rmsave:
 	move.l	(sp)+,$b8(a5)
 	rts
 .value:
+	IFD	GBC_JOYCFG		; 8-11: the Joy type (bigmenu.s)
+	cmp.b	#8,d7
+	bcs.s	.vj
+	moveq	#0,d0
+	move.b	d7,d0
+	subq.w	#8,d0
+	lea	bm_joyvals,a5
+	move.l	(a5,d0.w*4),a5
+	bra.s	.v1
+.vj:
+	ENDC
 	IFD	SGB_MENU
 	cmp.b	#4,d7
 	bcs.s	.vs
