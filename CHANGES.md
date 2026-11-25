@@ -75,8 +75,6 @@ Afrotechmods / FAmiga (CD32 pad read).
 **Problems**: please open an issue with the game, the program (AGA, AGA 030 or
 RTG), your machine and what you saw.
 
-SHA-256 of AmiGameBoy-2.5.lha: 4fe34e0c331b516deea5ce81b78cea1aba6022ab9226d4b401abf58da5049b85
-
 ## 2.4
 
 AmiGameBoy 2.4, community version: a Game Boy and Game Boy Color emulator for AGA
