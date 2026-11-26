@@ -54,7 +54,7 @@ Afrotechmods / FAmiga (CD32 pad read).
 **Problems**: please open an issue with the game, the program (AGA, AGA 030 or
 RTG), your machine and what you saw.
 
-SHA-256 of AmiGameBoy-2.5.1.lha: @SHA@
+SHA-256 of AmiGameBoy-2.5.1.lha: 25698f4ba312fda3795ebd2ae94ee9015f72bc82822e5516b2364db39bcf95ed
 
 ## 2.5
 
