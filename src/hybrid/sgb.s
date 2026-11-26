@@ -30,6 +30,13 @@
 ;          (2x on 640x480 and 960x540) instead of the game's own (the border cut to the screen).
 ; SGB_OPT  the option (config line); SGB_MENU the Options menu tick (rmenu.s).
 ; SGB_DUMP (test) the state to GB:AmiGB.sgb at AutoExit (tools/sgb_check.py).
+; HY_FIX251 (26 Nov 2026, after 2.5) VRAM transfers read each tile row with LCDC, SCX, SCY and
+;          BGP as its top line was shown (sgb_hline from gbc_hblank), not as they are at LY 144:
+;          Arcade Classic No. 1 has LCDC bit 4 off by LY 144 (an LYC interrupt at line 72), so
+;          its second PAL_TRN (the title) was read from the $8800 tiles: black palettes, a black
+;          screen from the title on (2.4 too).
+; SGB_TLOG (test, with SGB_DUMP) the packets and transfer reads, and the VRAM at the last
+;          PAL_TRN read, at the end of GB:AmiGB.sgb (26 Nov 2026).
 
 	SECTION	sgbcode,CODE
 
@@ -190,6 +197,11 @@ sgb_clrbuf:
 ; ---- a whole command in sgb_buf. Keeps every register.
 sgb_cmd:
 	movem.l	d0-d7/a0-a4,-(sp)
+	IFD	SGB_TLOG
+	lea	sgb_buf,a0
+	moveq	#0,d0
+	jsr	sgb_tlogw
+	ENDC
 	moveq	#0,d1
 	move.b	sgb_buf,d1
 	lsr.b	#3,d1			; the command
@@ -628,9 +640,49 @@ sgb_frame:
 	dbra	d0,.c
 	rts
 
+	IFD	HY_FIX251
+; ---- sgb_vget: tile row d2's registers as the line at its top was shown since the command
+; (sgb_trow, sgb_hline), else as they are now (a2 = $FF00): d7 LCDC, d6 BGP, d5 SCX and d4 SCY
+; in tiles, a3 the BG map (a1 = memory). Keeps the rest.
+sgb_vrreg:
+	move.l	a2,a3
+	move.w	sgb_trowm,d0
+	btst	d2,d0
+	beq.s	.now
+	move.w	d2,d0
+	lsl.w	#2,d0
+	lea	sgb_trow,a3
+	add.w	d0,a3
+	move.b	(a3)+,d7		; LCDC
+	moveq	#0,d5
+	move.b	(a3)+,d5		; SCX
+	moveq	#0,d4
+	move.b	(a3)+,d4		; SCY
+	move.b	(a3),d6			; BGP
+	bra.s	.t
+.now:	move.b	$40(a3),d7
+	moveq	#0,d5
+	move.b	$43(a3),d5
+	moveq	#0,d4
+	move.b	$42(a3),d4
+	move.b	$47(a3),d6
+.t:	lsr.w	#3,d5			; in tiles
+	lsr.w	#3,d4
+	tst.b	gbc_mode
+	beq.s	.dmg
+	move.b	#$e4,d6
+.dmg:	move.l	a1,a3
+	add.l	#$9800,a3
+	btst	#3,d7
+	beq.s	.m0
+	add.w	#$400,a3
+.m0:	rts
+	ENDC
+
 ; ---- the 4 KB a VRAM transfer carries -> sgb_tbuf: the tiles the BG map shows on the screen,
 ; 20 a row from the top left (coarse SCX/SCY), as the Super Game Boy reads them from the
 ; picture: bit planes through BGP (none in CGB mode). Window and objects are not looked at.
+; HY_FIX251: each tile row with LCDC, SCX, SCY and BGP as its top line was shown (sgb_hline).
 sgb_vget:
 	move.l	gb_memory,a1
 	move.l	a1,a2
@@ -654,7 +706,11 @@ sgb_vget:
 .m0:	lea	sgb_tbuf,a0
 	moveq	#0,d3			; tiles done
 	moveq	#0,d2			; row
-.row:	move.w	d2,d0
+.row:
+	IFD	HY_FIX251
+	bsr.w	sgb_vrreg		; this tile row's registers, as it was shown
+	ENDC
+	move.w	d2,d0
 	add.w	d4,d0
 	and.w	#31,d0
 	lsl.w	#5,d0
@@ -691,7 +747,48 @@ sgb_vget:
 	bne.s	.col
 	addq.w	#1,d2
 	bra.s	.row
-.done:	rts
+.done:
+	IFD	SGB_TLOG
+	jsr	sgb_tlogv
+	ENDC
+	IFD	HY_FIX251
+	clr.w	sgb_trowm		; the next transfer's rows from its own frames
+	ENDC
+	rts
+
+	IFD	HY_FIX251
+; ---- each line the picture shows (gbc_hblank: LY 0-143, LCD on; a6 = $FF00) while a VRAM
+; transfer waits (sgb_trn): at the top line of each tile row the transfer uses (LY 0, 8 .. 96)
+; LCDC, SCX, SCY and BGP into sgb_trow. The Super Game Boy takes the transfer from the picture
+; as it was shown; a game may change these further down (Arcade Classic No. 1: LCDC bit 4 off
+; by LY 144, an LYC interrupt at line 72), so at LY 144 they need not be the ones the transfer
+; was shown with (26 Nov 2026). Keeps every register.
+sgb_hline:
+	movem.l	d0-d1/a0,-(sp)
+	move.l	gb_scanlines,d0
+	cmp.l	#13*8,d0
+	bcc.s	.x
+	moveq	#7,d1
+	and.w	d0,d1
+	bne.s	.x
+	lsr.w	#3,d0			; the tile row
+	move.w	sgb_trowm,d1		; taken from the picture (sgb_vrreg)
+	bset	d0,d1
+	move.w	d1,sgb_trowm
+	lsl.w	#2,d0
+	lea	sgb_trow,a0
+	add.w	d0,a0
+	bsr.s	sgb_trowput
+.x:	movem.l	(sp)+,d0-d1/a0
+	rts
+; a0 = a row of sgb_trow, a6 = $FF00: the registers now. a0 advanced.
+sgb_trowput:
+	move.b	$40(a6),(a0)+
+	move.b	$43(a6),(a0)+
+	move.b	$42(a6),(a0)+
+	move.b	$47(a6),(a0)+
+	rts
+	ENDC
 
 ; one tile (16 bytes a4 -> a0, both advanced) through BGP (d6): colour c becomes shade
 ; BGP >> 2c; plane by plane, from masks of the pixels of each colour. Keeps the rest.
@@ -988,6 +1085,9 @@ sgb_bmake:
 	bne.w	.my
 	st	sgb_bvalid
 	st	sgb_bdirty
+	IFD	HY_CRASHLOG		; test: the crash log's steps (crashlog.s)
+	HYSTEP	26,gbc_rscale
+	ENDC
 	movem.l	(sp)+,d0-d7/a0-a6
 	rts
 
@@ -1034,8 +1134,14 @@ sgb_bfit:
 	movem.l	d0-d3,-(sp)
 	bsr.s	sgb_bscale
 	cmp.w	gbc_rscale,d0
+	IFD	HY_CRASHLOG		; test: the crash log's steps (crashlog.s)
+	bcc.w	.x
+	move.w	d0,gbc_rscale
+	HYSTEP	27,gbc_rscale
+	ELSE
 	bcc.s	.x
 	move.w	d0,gbc_rscale
+	ENDC
 	move.w	d0,d3
 	mulu.w	#160,d0
 	move.w	gbc_rw,d1
@@ -1280,8 +1386,91 @@ sgb_dwr:
 	IFD	SGB_BORD
 	dc.l	sgb_bpix,256*224,sgb_pct+$800,96
 	ENDC
+	IFD	SGB_TLOG
+	dc.l	sgb_tlogn,4+16*SGB_TLOGN,sgb_tlvram,$2000+256+4096
+	ENDC
 	ENDC
 	dc.l	0
+	ENDC
+
+	IFD	SGB_TLOG
+; ---- test (26 Nov, Arcade Classic No. 1): a log of the packets and the VRAM transfers, 16 bytes
+; each, SGB_TLOGN at most, written by sgb_dump: packets: HyFrames, sgb_dis, 11 bytes of the
+; command; transfers: HyFrames | $80000000, the command, LCDC, BGP, SCX, SCY, LY, the sum of
+; the 4 KB (long), its first 2 bytes. Keeps every register.
+SGB_TLOGN	=256
+	SECTION	sgbtlcode,CODE
+sgb_tlogw:				; a0 = the command
+	movem.l	d0/a0-a1,-(sp)
+	bsr.s	sgb_tlslot
+	beq.s	.x
+	move.l	HyFrames,(a1)+
+	move.b	sgb_dis,(a1)+
+	moveq	#11-1,d0
+.c:	move.b	(a0)+,(a1)+
+	dbra	d0,.c
+.x:	movem.l	(sp)+,d0/a0-a1
+	rts
+sgb_tlslot:
+	move.l	sgb_tlogn,d0
+	cmp.l	#SGB_TLOGN,d0
+	bcc.s	.tno
+	addq.l	#1,sgb_tlogn
+	lsl.l	#4,d0
+	lea	sgb_tlog,a1
+	add.l	d0,a1
+	moveq	#1,d0
+	rts
+.tno:	moveq	#0,d0
+	rts
+sgb_tlogv:
+	movem.l	d0-d1/a0-a2,-(sp)
+	bsr.s	sgb_tlslot
+	beq.w	.x
+	move.l	HyFrames,d0
+	bset	#31,d0
+	move.l	d0,(a1)+
+	move.b	sgb_trn,(a1)+
+	move.l	gb_memory,a2
+	add.l	#$ff00,a2
+	move.b	$40(a2),(a1)+
+	move.b	$47(a2),(a1)+
+	move.b	$43(a2),(a1)+
+	move.b	$42(a2),(a1)+
+	move.b	$44(a2),(a1)+
+	lea	sgb_tbuf,a0
+	moveq	#0,d0
+	moveq	#0,d1
+	move.w	#4096-1,d1
+.s:	add.b	(a0)+,d0
+	rol.l	#1,d0
+	dbra	d1,.s
+	move.l	d0,(a1)+
+	move.b	sgb_tbuf,(a1)+
+	move.b	sgb_tbuf+1,(a1)+
+	cmp.b	#$0b,sgb_trn		; PAL_TRN: VRAM, the registers and the 4 KB kept (the last)
+	bne.s	.x
+	move.l	gb_memory,a0
+	add.l	#$8000,a0
+	lea	sgb_tlvram,a1
+	move.w	#$2000/4-1,d1
+.v:	move.l	(a0)+,(a1)+
+	dbra	d1,.v
+	move.l	gb_memory,a0
+	add.l	#$ff00,a0
+	moveq	#256/4-1,d1
+.r:	move.l	(a0)+,(a1)+
+	dbra	d1,.r
+	lea	sgb_tbuf,a0
+	move.w	#4096/4-1,d1
+.t:	move.l	(a0)+,(a1)+
+	dbra	d1,.t
+.x:	movem.l	(sp)+,d0-d1/a0-a2
+	rts
+	SECTION	sgbtlbss,BSS
+sgb_tlogn:	ds.l	1
+sgb_tlog:	ds.b	16*SGB_TLOGN
+sgb_tlvram:	ds.b	$2000+256+4096
 	ENDC
 
 	IFD	SGB_SNAP
@@ -1607,6 +1796,10 @@ sgb_buf:	ds.b	112		; the command, up to 7 packets
 sgb_attr:	ds.b	360		; the 20 x 18 blocks' palettes
 sgb_sys:	ds.b	4096		; PAL_TRN: 512 palettes of 4 (little-endian)
 sgb_atf:	ds.b	4096		; ATTR_TRN: 45 attribute files of 90 bytes
+	IFD	HY_FIX251
+sgb_trow:	ds.b	13*4		; per tile row of a transfer: LCDC, SCX, SCY, BGP (sgb_hline)
+sgb_trowm:	ds.w	1		; ... the rows set since the last transfer was taken
+	ENDC
 sgb_dend:
 sgb_cnt:	ds.l	32		; commands taken, per number (test dump)
 sgb_sw:		ds.w	16		; sgb_pal in the screen's format

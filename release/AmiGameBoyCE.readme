@@ -33,6 +33,11 @@ on. This community version, released with his consent, keeps his menu
 and his AGA display and runs the games on the Game Boy engine of
 Wzonka-Lad by Ville Helin (GPL-2).
 
+2.5.1 Super Game Boy: colours and border of cartridges that change
+      the screen settings partway down the picture while sending
+      them (Arcade Classic No. 1 went black). All programs: picking
+      a cartridge whose file name has 65 or more characters made
+      the next Insert crash (error 80000004).
 2.5   RTG: a big menu on 1920x1080 (else 1280x720) Picasso96 screens,
       Juan's layout in a 4:3 area with a clear font and a redrawn logo
       and controller pictures ("Menu = Classic" for the old one);

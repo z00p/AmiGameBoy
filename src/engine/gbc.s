@@ -624,6 +624,14 @@ gbc_hblank:
 	bcc.s	.nr
 	btst	#7,$40(a6)
 	beq.s	.nr
+	IFD	HY_FIX251
+	IFD	SGB_PKT
+	tst.b	sgb_trn			; a Super Game Boy VRAM transfer waits: this line's
+	beq.s	.nt			; registers (sgb.s), drawn or not
+	jsr	sgb_hline
+.nt:
+	ENDC
+	ENDC
 	tst.b	gbc_lineoff		; this frame's picture will be skipped: no lines
 	bne.s	.lo
 	IFD	GBC_APROF		; test: the renderer's lines (CIA-B TOD, low byte)

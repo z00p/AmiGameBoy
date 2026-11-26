@@ -35,13 +35,16 @@ if [ "$1" = hybrid ]; then  # stage 1 hybrid, cartridge inside: sh build.sh hybr
 fi
 if [ "$1" = rel ]; then  # the 2.0 release programs: sh build.sh rel [dir] -> dir/AGA, dir/AGA 030, dir/RTG
   d=${2:-build/rel}; mkdir -p "$d"
-  com="-DHY_REL20 -DHY_REL21 -DHY_REL22 -DHY_REL23 -DHY_REL24 -DHY_REL25 -DHY_ASLWIDE -DGBC_ADCZ -DHY_LUPA -DHY_CD32KIT -DHY_SAVE128 -DHY_CD32LATCH=200 -DHY_IDLEC -DHY_JRPOLL -DHY_VOLPCT=50 -DHY_CREDZ -DHY_CREDVH -DWZ_DAA -DWZ_HFLAGS -DWZ_SPFLAGS -DWZ_EIDELAY -DHY_WYLINE -DHY_JOYPAD2 $defs"
+  r251=${FIX-"-DHY_REL251"}   # 2.5.1 version text (FIX= : the 2.5 release)
+  mfix=${FIX-"-DHY_FIX251B"}   # after 2.5, all three programs: Insert with a file name of 65+ characters (FIX= : none)
+  com="$mfix -DHY_REL20 -DHY_REL21 -DHY_REL22 -DHY_REL23 -DHY_REL24 -DHY_REL25 $r251 -DHY_ASLWIDE -DGBC_ADCZ -DHY_LUPA -DHY_CD32KIT -DHY_SAVE128 -DHY_CD32LATCH=200 -DHY_IDLEC -DHY_JRPOLL -DHY_VOLPCT=50 -DHY_CREDZ -DHY_CREDVH -DWZ_DAA -DWZ_HFLAGS -DWZ_SPFLAGS -DWZ_EIDELAY -DHY_WYLINE -DHY_JOYPAD2 $defs"
   VASMDEFS="$com -DHY_GBC -DGBC_RENDER -DGBC_AGA -DHY_WAVERST -DGBC_STATWR -DGBC_APEN0=0 -DHY_DIWFRAC=2 -DGBC_CCOPT -DGBC_CCDEF -DGBC_CCMENU" sh build.sh hymenu "$d/AGA" || exit 1
   VASMDEFS="$com -DHY_DIWFRAC=2" sh build.sh hymenu "$d/AGA 030" || exit 1
   # 2.5: the RTG big menu (1920x1080, else 1280x720, else the classic menu)
   big="-DGBC_BIGMENU -DGBC_BIG43 -DGBC_BIGFONT=1 -DGBC_BIGSIZE=1080 -DGBC_BIGLAYOUT -DGBC_BIGHIRES"
   joy="-DGBC_JOYCFG"   # Joy type kept in AmiGameBoy.config; joy="" leaves it out (Juan's prefs only)
-  VASMDEFS="$com -DHY_GBC -DGBC_RENDER -DGBC_RTG -DGBC_RTGMENU -DGBC_RPTR -DGBC_BLEND -DGBC_RBEZ -DGBC_RSCAN     -DGBC_RBEZON -DHY_WAVERST -DGBC_STATWR -DGBC_RMENU -DGBC_CCOPT -DGBC_CCDEF -DGBC_CCMENU -DSGB -DSGB_P2 $big $joy" sh build.sh hymenu "$d/RTG" || exit 1
+  fix=${FIX-"-DHY_FIX251"}   # after 2.5: SGB VRAM transfers per tile row (Arcade Classic No. 1); FIX= sh build.sh rel = the 2.5 release
+  VASMDEFS="$com -DHY_GBC -DGBC_RENDER -DGBC_RTG -DGBC_RTGMENU -DGBC_RPTR -DGBC_BLEND -DGBC_RBEZ -DGBC_RSCAN     -DGBC_RBEZON -DHY_WAVERST -DGBC_STATWR -DGBC_RMENU -DGBC_CCOPT -DGBC_CCDEF -DGBC_CCMENU -DSGB -DSGB_P2 $big $joy $fix" sh build.sh hymenu "$d/RTG" || exit 1
   exit 0
 fi
 if [ "$1" = hymenu ]; then  # hybrid with Juan's menu, no cartridge inside: sh build.sh hymenu [out]

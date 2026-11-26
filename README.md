@@ -1,6 +1,6 @@
 # AmiGameBoy
 
-**AmiGameBoy 2.5, community version** (25 November 2026). Download: the LhA archive on the [Releases](https://github.com/z00p/AmiGameBoy/releases) page, or Aminet misc/emu/AmiGameBoyCE.lha.
+**AmiGameBoy 2.5.1, community version** (26 November 2026). Download: the LhA archive on the [Releases](https://github.com/z00p/AmiGameBoy/releases) page, or Aminet misc/emu/AmiGameBoyCE.lha.
 
 AmiGameBoy is a Game Boy and Game Boy Color emulator for AGA Amigas, in
 68020+ assembly. It plays .gb and .gbc cartridges with sound, battery
@@ -273,6 +273,8 @@ games.
 Version 2.5 gives the RTG program a big menu on 1920x1080 and 1280x720
 screens, with Surround and Scanlines in it, and keeps the Joy type in
 AmiGameBoy.config.
+Version 2.5.1 fixes the Super Game Boy colours of Arcade Classic No. 1
+and a crash after picking a cartridge with a long file name.
 
 ## Source and building
 

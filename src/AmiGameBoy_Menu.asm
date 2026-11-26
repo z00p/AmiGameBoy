@@ -817,6 +817,9 @@ Continue:
 PowerON:
 	MOVEQ	#00,D7
 ContinueCon:
+	IFD	HY_CRASHLOG
+	HYSTEP	10,D7
+	ENDC
 	LEA	tErNoCartucho(PC),A0
 	TST.L	BucCart(PC)
 	BEQ	ImpError
@@ -880,6 +883,9 @@ Eject:
 	BEQ.S	EjectSi
 	RTS
 EjectSi:
+	IFD	HY_CRASHLOG
+	HYSTEP	23,DirCart
+	ENDC
 	MOVE.L	BucCart(PC),D0
 	MOVE.L	DirCart(PC),A1
 	MOVE.L	$4.W,A6
@@ -925,6 +931,9 @@ EjNoHayCart:
 
 	CNOP	0,8
 Insert:
+	IFD	HY_CRASHLOG
+	HYSTEP	2,BucCart	; hybrid test: the crash log's steps (hybrid/crashlog.s)
+	ENDC
 	TST.L	_AslBase(PC)
 	BEQ	NeedASL
 
@@ -955,6 +964,9 @@ NoSaveBatt2:
 	JSR	-$3C(A6)	; RequestFile.
 	IFD	HY_MENU
 HyAutoIns:
+	ENDC
+	IFD	HY_CRASHLOG
+	HYSTEP	3,MiraCartSize
 	ENDC
 
 	TST.L	D0
@@ -1036,6 +1048,9 @@ EsXpkFile:
 
 	MOVE.L	BucCart(PC),D0
 	BEQ.S	NoHayCart
+	IFD	HY_CRASHLOG
+	HYSTEP	4,DirCart
+	ENDC
 	MOVE.L	DirCart(PC),A1
 	MOVE.L	$4.W,A6
 	JSR	-$D2(A6)		; Libera memoria.
@@ -1048,6 +1063,9 @@ NoHayCart:
 	MOVE.L	4.W,A6
 	JSR	-$C6(A6)		; Requiere memoria.
 	MOVE.L	D0,DirCart
+	IFD	HY_CRASHLOG
+	HYSTEP	5,DirCart
+	ENDC
 	BEQ	OutOfMem
 
 ;	--------------------
@@ -1084,6 +1102,9 @@ SiCompri0:
 	BNE	ReadError
 
 	BSR	CloseFile
+	IFD	HY_CRASHLOG
+	HYSTEP	6,BucFile
+	ENDC
 ; -=-=-
 
 	TST.B	Comprimido(PC)
@@ -1224,6 +1245,9 @@ ManufFin:
 	IFD	HY_CARTINFO
 	JSR	HyCartInfo		; hybrid: from the whole header bytes (hybrid/cartinfo.s)
 	ENDC
+	IFD	HY_CRASHLOG
+	JSR	cr_hdr			; hybrid test: header bytes (hybrid/crashlog.s)
+	ENDC
 
 	MOVE.B	$80+$14A(A0),D0
 	AND.B	#$0F,D0
@@ -1279,6 +1303,9 @@ NoLeeBatt:
 	MOVEQ	#1,D0
 	BSR	GadsOnOff
 
+	IFD	HY_CRASHLOG
+	HYSTEP	9,DirCart
+	ENDC
 	BSR	EnaMouse
 	RTS
 
@@ -1287,6 +1314,9 @@ NoLeeBatt:
 MiraTipoCart:
 	MOVE.L	InsReqBase,A0
 	MOVE.L	4(A0),A0
+	IFD	HY_CRASHLOG
+	JSR	cr_name		; hybrid test: the name's length (hybrid/crashlog.s)
+	ENDC
 	BSR	BuscaExt
 
 	LEA	FileNom(PC),A0
@@ -1358,9 +1388,17 @@ MiTiBuc0:
 	ADDQ.W	#1,D0
 	BRA.S	MiTiBuc0
 MiTiCon0:
+	IFD	HY_FIX251B	; hybrid: a name of 65 characters or more wrote over MiraCartSize
+	JSR	HyBuscaFix	; (hybrid/menu.s); the same 14 bytes as the three below
+	NOP
+	NOP
+	NOP
+	NOP
+	ELSE
 	MOVEQ	#0,D3
 	MOVE.W	#1,BucPunto
 	LEA	(A1,D0.W),A1
+	ENDC
 MiTiBuc1:
 	ADDQ.W	#1,D3
 	MOVE.B	-(A0),-(A1)

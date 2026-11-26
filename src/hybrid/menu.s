@@ -51,6 +51,18 @@ HY_ASLPAT	=1			; the Insert requester lists cartridges and drawers only
 HY_CARTINFO	=1			; the info panel's mapper/ROM/RAM from the header (cartinfo.s)
 	ENDC
 HY_VBLNTSC	=65428			; Game Boy frames per NTSC VBL, 16.16 (59.7275 / 59.826)
+; HY_CRASHLOG (test, crashlog.s): step \1 with the long \2 into the crash log's ring. Keeps every
+; register and the flags. Nothing without the switch.
+HYSTEP	MACRO
+	IFD	HY_CRASHLOG
+	move.w	ccr,-(sp)
+	move.l	\2,-(sp)
+	move.w	#\1,-(sp)
+	jsr	cr_step
+	addq.l	#6,sp
+	move.w	(sp)+,ccr
+	ENDC
+	ENDM
 NameFromLock	=-402
 AddPart		=-882
 
@@ -79,6 +91,9 @@ Start:	movem.l	d2-d7/a2-a6,-(sp)
 	jsr	OpenLibrary(a6)
 	move.l	d0,HyDosBase
 	beq.w	.nomem
+	IFD	HY_CRASHLOG		; test: any CPU exception -> PROGDIR:crash.log (crashlog.s)
+	jsr	cr_install
+	ENDC
 	move.l	#GBMEM,gb_memory
 	move.l	#$40000,d0
 	jsr	HyAlloc
@@ -101,6 +116,9 @@ Start:	movem.l	d2-d7/a2-a6,-(sp)
 	moveq	#0,d0
 	ENDC
 	move.l	d0,-(sp)
+	IFD	HY_CRASHLOG
+	jsr	cr_remove
+	ENDC
 	jsr	HyCartFree
 	move.l	gb_mem_jumps,d0
 	move.l	#$40000,d1
@@ -274,7 +292,11 @@ HyMenuEmul:
 	IFD	HY_LUPA
 	jsr	LupaSettle		; no key or button held at the takeover (lupa.s)
 	ENDC
+	IFD	HY_CRASHLOG		; (the same 6 bytes: short branches span this)
+	jsr	cr_cong24		; step 24, then CongelaAMIGA (crashlog.s)
+	ELSE
 	jsr	CongelaAMIGA
+	ENDC
 	IFD	GBC_RTG
 	bsr.w	HyRtgDma
 	ENDC
@@ -293,6 +315,9 @@ HyMenuEmul:
 	rts				; back into the engine (hybrid_frame)
 
 .power:	clr.l	HyEngSP
+	HYSTEP	11,DirCart
+	HYSTEP	28,gbc_rbezon
+	HYSTEP	28,sgb_opt
 	tst.l	gb_mem_jumps
 	beq.w	.nomem
 	tst.l	memory_banks
@@ -313,6 +338,8 @@ HyMenuEmul:
 .typeok:
 	bsr.w	HyMenuRestore		; engine, sound, renderer state as at start
 	bsr.w	HyCartLoad		; flat copy + ROM image space
+	HYSTEP	12,HyFlat
+	HYSTEP	13,HyRom32
 	beq.w	.nomem
 
 ; header: bank masks and MBC3 flag (as the cartridge-inside Start)
@@ -366,6 +393,7 @@ HyMenuEmul:
 	IFD	SGB_PKT			; Super Game Boy carts (sgb.s), as the option is now
 	move.l	gb_mem_jumps,a0
 	jsr	sgb_install
+	HYSTEP	14,sgb_on
 	ENDC
 	IFND	NO_SOUND
 	clr.b	snd_quality
@@ -416,7 +444,11 @@ HyMenuEmul:
 	IFD	HY_LUPA
 	jsr	LupaSettle		; no key or button held at the takeover (lupa.s)
 	ENDC
+	IFD	HY_CRASHLOG
+	jsr	cr_cong18		; step 18, then CongelaAMIGA (crashlog.s)
+	ELSE
 	jsr	CongelaAMIGA
+	ENDC
 	IFD	GBC_RTG
 	bsr.w	HyRtgDma
 	ENDC
@@ -447,18 +479,24 @@ HyMenuEmul:
 HyMenuPause:
 	sf	SalirMenu(a3)
 	move.l	sp,HyEngSP
+	HYSTEP	19,HyEngSP
 	bra.s	HyMenuLeave
 ; ---- the engine stopped (z80_halted, AutoExit): no Continue
 HyMenuExit:
 	clr.l	HyEngSP
+	HYSTEP	20,HyFrames
 HyMenuLeave:
 	move.l	HyMenuSP,sp
 	IFND	NO_SOUND
 	bsr.w	HySndStop
 	ENDC
 	jsr	DescongelaAMIGA
+	IFD	HY_CRASHLOG
+	sf	cr_frozen
+	ENDC
 	IFD	GBC_RTG
 	jsr	gbc_rtg_close		; the menu's screen back
+	HYSTEP	21,gbc_rscr
 	ENDC
 	IFD	HY_LUPA
 	jsr	LupaSettle		; and the keys up again before the OS reads them (lupa.s)
@@ -631,6 +669,7 @@ HyCartLoad:
 .x:	rts
 
 HyCartFree:
+	HYSTEP	22,HyFlat
 	move.l	HyFlat,d0
 	move.l	HyFlatLen,d1
 	jsr	HyFree
@@ -648,6 +687,10 @@ HyCartFree:
 HyRtgOpen:
 	sf	gbc_rdbuf		; (gbc_rtg_open only ever sets it)
 	jsr	gbc_rtg_open
+	HYSTEP	15,gbc_rmode
+	HYSTEP	16,gbc_rw
+	HYSTEP	17,gbc_rscale
+	HYSTEP	25,sgb_bvalid
 	tst.b	gbc_rtg_on
 	rts
 ; ---- after CongelaAMIGA: nothing of the display from chip RAM (as the cartridge-inside Start)
@@ -715,6 +758,10 @@ tHyErrType:	dc.b	4,"Unknown cartridge type",0,"Not supported yet",0
 	IFD	GBC_RTG
 tHyErrRtg:	dc.b	4,"No RTG screen",0,"Needs a 16-bit Picasso96 mode",0
 	ENDC
+	IFD	HY_REL251		; the 2.5.1 release (with HY_REL20 to HY_REL25)
+HyAb0:		dc.b	"AmiGameBoy 2.5.1 community version",0
+HyAb1:		dc.b	"(26 November 2026)",0
+	ELSE
 	IFD	HY_REL25		; the 2.5 release (with HY_REL20 to HY_REL24)
 HyAb0:		dc.b	"AmiGameBoy 2.5 community version",0
 HyAb1:		dc.b	"(25 November 2026)",0
@@ -747,6 +794,7 @@ HyAb1:		dc.b	"(14 November 2026)",0
 	ENDC
 	ENDC
 	ENDC
+	ENDC
 HyAb2:		dc.b	"Menu and display:",0
 HyAb4:		dc.b	"Game Boy engine (Wzonka-Lad):",0
 	IFD	HY_CREDVH		; Wzonka-Lad is Ville Helin's (GitHub issue #7)
@@ -757,6 +805,13 @@ HyAb5:		dc.b	"Ville Helin, Ventzislav Tzvetkov",0
 HyAb6:		dc.b	"Icons and Graphics: Multivac",0
 HyAb7:		dc.b	"Community version: z00p",0
 HyAb8:		dc.b	"GNU GPL v2, no warranty",0
+	IFD	HY_REL251
+HyWTitle:	dc.b	"AmiGameBoy 2.5.1",0
+HySTitle:	dc.b	"AmiGameBoy 2.5.1"
+	IFND	HY_CREDZ		; (the three authors need the room)
+		dc.b	" community version"
+	ENDC
+	ELSE
 	IFD	HY_REL25
 HyWTitle:	dc.b	"AmiGameBoy 2.5",0
 HySTitle:	dc.b	"AmiGameBoy 2.5"
@@ -804,6 +859,7 @@ HySTitle:	dc.b	"AmiGameBoy 1.0 community version"
 	ENDC
 	ENDC
 	ENDC
+	ENDC
 	IFD	HY_CREDZ		; Juan, Ville Helin and z00p credited alike
 		dc.b	" ",$a9," 1997-2026 "
 	ELSE
@@ -839,6 +895,26 @@ HyMenuTitles:
 	move.l	#HyWTitle,MainMenuWG+12
 	move.l	#HySTitle,MainMenuWG+20
 	jmp	HyMenuAbout
+	IFD	HY_FIX251B
+; ---- HY_FIX251B (26 Nov 2026): Juan's BuscaExt (Insert) copies the end of the file name back to
+; its dot into MiTiNom, which holds 8 + 64 bytes, from MiTiNom+8+length down. A name of 65
+; characters or more ("33 - Teenage Mutant Ninja Turtles - Fall of the Foot Clan (1990).gb", 67)
+; wrote its ".GB" and the 0 over the code behind it, MiraCartSize: the next Insert ran $4742
+; there, an illegal instruction (80000004 on the A1200). Here only the last 64 characters are
+; looked at: the extension is all BuscaExt wants. In place of his MOVEQ #0,D3 / MOVE.W
+; #1,BucPunto / LEA (A1,D0.W),A1 (the same 14 bytes: JSR and four NOPs).
+HyBuscaFix:
+	moveq	#0,d3
+	move.w	#1,BucPunto
+	cmp.w	#64,d0
+	bls.s	.ok
+	moveq	#64,d0
+.ok:	lea	(a1,d0.w),a1
+	rts
+	ENDC
+	IFD	HY_CRASHLOG
+	include	"crashlog.s"
+	ENDC
 	SECTION	hybridbss,BSS
 HyArgPath:	ds.b	256
 	IFEQ	HY_MENUTEST-2

@@ -1,5 +1,61 @@
 # Changes
 
+## 2.5.1
+
+AmiGameBoy 2.5.1, community version: a Game Boy and Game Boy Color emulator for AGA
+Amigas, on the AGA screen or a graphics board. By Juan Antonio Gómez Gálvez
+(AmiGameBoy: menu and display), Ville Helin (Wzonka-Lad: the Game Boy engine)
+and z00p (community version: sound, Game Boy Color, Super Game Boy). Also on
+Aminet: misc/emu/AmiGameBoyCE.lha.
+
+A bug-fix release: two fixes, everything else as in 2.5.
+
+**Fixes**
+- **Super Game Boy colours** (RTG): a cartridge that changes the screen
+  settings partway down the picture while it sends its Super Game Boy colours
+  had them read from the wrong place, so its screen went black after the
+  logo. They are now read row by row with the settings each row was shown
+  with. Arcade Classic No. 1 (Asteroids and Missile Command) shows its title,
+  border and colours. Not new in 2.5: 2.4 did the same.
+- **Long file names** (AGA, AGA 030 and RTG): picking a cartridge whose file
+  name has 65 or more characters wrote past a buffer in the menu, and the next
+  Insert crashed with error 80000004 (or hung). The name is now cut to 64
+  characters for that check. The bug dates from Juan's original menu.
+
+**Upgrading from 2.5**: unpack over it. AmiGameBoy.config and the saves are
+kept.
+
+**Requirements**: as 2.5. AGA and AmigaOS 3.0 or later. AGA 030: 68020 or
+better, a 68030/50 for full speed. AGA and RTG: a PiStorm-class machine; RTG
+also needs Picasso96 and a 16-bit screen mode.
+
+**Known issues**: none.
+
+**Tried on real hardware**: an A1200 with a PiStorm (RTG, 1080p): Arcade
+Classic No. 1 with its border and colours, Surround Auto and Scanlines On; then
+Teenage Mutant Ninja Turtles (a 67-character file name) and Arcade Classic No.
+1 again in the same session, which crashed in 2.5 and loads in 2.5.1.
+
+**Tested in WinUAE**: eight other Super Game Boy cartridges look the same as in
+2.5; the long-name crash and its fix with both Turtles games; with the fixes
+left out the programs are byte for byte those of 2.5.
+
+**Install**: unpack AmiGameBoy-2.5.1.lha and start AGA, AGA 030 or RTG in the
+AmiGameBoy drawer. ReadMe.txt and AmiGameBoy.guide have the keys, the pad, the
+settings and the saves. No games are included: use cartridge images you may
+legally have.
+
+**Credits**: Juan Antonio Gómez Gálvez (AmiGameBoy: menu and display), Ville
+Helin (Wzonka-Lad: the Game Boy engine) and z00p (community version, sound,
+Game Boy Color, Super Game Boy, big menu); Multivac (icons and graphics in
+Juan's original), Ventzislav Tzvetkov (later small fixes to Wzonka-Lad),
+Afrotechmods / FAmiga (CD32 pad read).
+
+**Problems**: please open an issue with the game, the program (AGA, AGA 030 or
+RTG), your machine and what you saw.
+
+SHA-256 of AmiGameBoy-2.5.1.lha: @SHA@
+
 ## 2.5
 
 AmiGameBoy 2.5, community version: a Game Boy and Game Boy Color emulator for AGA
