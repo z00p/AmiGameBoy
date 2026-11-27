@@ -43,7 +43,13 @@ gbc_install:
 	IFND	GBC_FORCEDMG
 	btst	#7,$143(a1)
 	IFD	GBC_DMG
+	IFD	SGB_AGA			; AGA: only a Super Game Boy cart (option Auto) leaves
+	bne.s	.colr			; Juan's display (sgbaga.s)
+	jmp	gbc_sgbmono
+.colr:
+	ELSE
 	beq.w	gbc_dmginst
+	ENDC
 	ELSE
 	beq.w	.x
 	ENDC
@@ -123,7 +129,13 @@ gbc_dmginst:
 gbc_start:
 	tst.b	gbc_mode
 	IFD	GBC_DMG
+	IFD	SGB_AGA			; AGA: a Super Game Boy cart only (sgbaga.s)
+	bne.s	.colr
+	jmp	gbc_sgbstart
+.colr:
+	ELSE
 	beq.s	gbc_dmgstart
+	ENDC
 	ELSE
 	beq.s	.x
 	ENDC
@@ -611,6 +623,13 @@ gbc_block:
 
 ; ---- each line at sweep 3 (horizontal blank of lines 0-143), a6 = $FF00. Keeps all.
 gbc_hblank:
+	IFD	SGB_AGA			; AGA: mono carts are Juan's display, unless Super Game Boy
+	tst.b	gbc_mode
+	bne.s	.agac
+	tst.b	sgb_on
+	beq.w	.x
+.agac:
+	ENDC
 	IFND	GBC_DMG			; (GBC_DMG: the line in either mode, the rest CGB only)
 	tst.b	gbc_mode
 	IFD	GBC_APROF

@@ -17,8 +17,9 @@ Ville's Game Boy engine Wzonka-Lad, and z00p's community version that
 joins them, with sound and Game Boy Color.
 
 There are three programs:
-  AGA       Game Boy and Game Boy Color on the AGA screen, for fast
-            machines (PiStorm, BigMig, 68060 cards).
+  AGA       Game Boy and Game Boy Color on the AGA screen, with the
+            Super Game Boy's colours and borders, for fast machines
+            (PiStorm, BigMig, 68060 cards).
   AGA 030   Game Boy only, for an A1200 with a 68030/50.
   RTG       Game Boy and Game Boy Color on a 16-bit Picasso96 screen,
             with a screen surround, the Super Game Boy's colours
@@ -33,6 +34,11 @@ on. This community version, released with his consent, keeps his menu
 and his AGA display and runs the games on the Game Boy engine of
 Wzonka-Lad by Ville Helin (GPL-2).
 
+2.6   60 Hz by default (Screen: NTSC (60Hz), PAL (50Hz) or PAL
+      Smooth; "Pacing" in AmiGameBoy.config). Super Game Boy on the
+      AGA program. RTG: seven scanline styles (Hard 25/50/75%,
+      Blended light/Blended/Blended strong). Wzonka-Lad 1.12 fixes.
+      Castlevania Legends no longer goes black (Super Game Boy).
 2.5.1 Super Game Boy: colours and border of cartridges that change
       the screen settings partway down the picture while sending
       them (Arcade Classic No. 1 went black). All programs: picking
@@ -102,7 +108,7 @@ may legally have.
 Not supported
 -------------
 Cartridges over 2 MB, the link cable, the Game Boy Camera and Printer.
-Super Game Boy: RTG only, without its own sound; players 3 and 4 in
+Super Game Boy: AGA and RTG, without its own sound; players 3 and 4 in
 its multi-player games read as nothing pressed. AGA 030 refuses colour-only
 cartridges and runs dual-mode ones in mono.
 

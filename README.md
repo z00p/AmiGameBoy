@@ -1,6 +1,6 @@
 # AmiGameBoy
 
-**AmiGameBoy 2.5.1, community version** (26 November 2026). Download: the LhA archive on the [Releases](https://github.com/z00p/AmiGameBoy/releases) page, or Aminet misc/emu/AmiGameBoyCE.lha.
+**AmiGameBoy 2.6, community version** (27 November 2026). Download: the LhA archive on the [Releases](https://github.com/z00p/AmiGameBoy/releases) page, or Aminet misc/emu/AmiGameBoyCE.lha.
 
 AmiGameBoy is a Game Boy and Game Boy Color emulator for AGA Amigas, in
 68020+ assembly. It plays .gb and .gbc cartridges with sound, battery
@@ -15,8 +15,9 @@ While a game runs it takes over the machine.
 There are three programs. All three have the same menu.
 
 ```
-  AGA       Game Boy and Game Boy Color on the AGA screen. For fast
-            machines: PiStorm, BigMig, 68060 cards.
+  AGA       Game Boy and Game Boy Color on the AGA screen, and the
+            Super Game Boy's colours and borders. For fast machines:
+            PiStorm, BigMig, 68060 cards.
   AGA 030   Game Boy only, on the AGA screen. For an A1200 with a
             68030/50 and other machines too slow for colour.
   RTG       Game Boy and Game Boy Color on a graphics board (a 16-bit
@@ -91,13 +92,24 @@ CD32 pad in port 2:
 ## The settings file
 Each program writes the file AmiGameBoy.config beside itself the first
 time it starts, and reads it each time it starts. Edit it with any text
-editor; delete it to get the defaults back. Bezel, Scanlines and Super
-Game Boy are in the RTG program's Options menu too, and LCD Colours in
-the AGA and RTG programs' Options menu: a tick there changes the line
-in the file (the bezel shows from the next Continue, Super Game Boy
-from the next Power ON). In the RTG big menu, Surround and Scanlines
-in Screen Options set the same lines (see The menu). One setting a
-line:
+editor; delete it to get the defaults back. Bezel and Scanlines (with
+Scanline style) are in the RTG program's Options menu too, and LCD
+Colours and Super Game Boy in the AGA and RTG programs' Options menu:
+a tick there changes the line in the file (the bezel shows from the
+next Continue, Super Game Boy from the next Power ON). In the RTG big
+menu, Surround, Scanlines and Style in Screen Options set the same
+lines (see The menu). The menu's Screen setting writes the Pacing
+line. One setting a line:
+
+```
+  Pacing = 60 Hz  all programs: 60 Hz plays at full speed with one
+                 picture for each screen frame (HDMI, modern screens);
+                 50 Hz is the PAL timing of 2.5 and before, for 15 kHz
+                 CRTs that don't take 60 Hz; Smooth gives even motion on
+                 a 50 Hz screen at about 84% speed. The menu's Screen
+                 setting: NTSC (60Hz), PAL (50Hz), PAL Smooth. No line:
+                 60 Hz.
+```
 
 ```
   Red = A        what a pad button does. Buttons: Red, Blue, Green,
@@ -106,23 +118,29 @@ line:
   Pad = CD32 pad how the CD32 pad is read. CD32 pad is the usual way;
                  KTRL CD32+ is another way for pads and adapters whose
                  buttons flicker or drop out with the first.
-  Pad 2 = CD32 pad  RTG, two-player Super Game Boy games: the same
-                 choice for the pad in port 1 (player 2). Not in the
-                 file unless you add it; without it, CD32 pad.
+  Pad 2 = CD32 pad  AGA and RTG, two-player Super Game Boy games:
+                 the same choice for the pad in port 1 (player 2). Not
+                 in the file unless you add it; without it, CD32 pad.
   Blend = On     RTG: each picture mixed with the one before, as the
                  LCD did, so games that flicker sprites look steady.
   Bezel = On     RTG: a screen surround round the picture.
-  Scanlines = Off  RTG: On darkens the last screen line of each picture
-                 line, like a CRT.
+  Scanlines = Off  RTG: On gives the picture scanlines, like a CRT,
+                 in the style below. The game only, not the bezel or
+                 the Super Game Boy border.
+  ScanlineStyle = 50  RTG: 25, 50 or 75 (Hard: the lower part of each
+                 Game Boy line darkened by 25, 50 or 75%), blendlight,
+                 blend or blendstrong (Blended: each line mixed with the
+                 one below, then darkened). Kept while Scanlines is Off.
   Colours = LCD  AGA and RTG, Game Boy Color games: LCD softens the
                  colours as the Game Boy Color's own screen showed
                  them; Raw shows them as the game sets them. A file
                  from 2.0 has no Colours line, so LCD: add the line
                  Colours = Raw to change it.
-  Super Game Boy = Auto  RTG: Auto shows the Super Game Boy colours
-                 and border of cartridges made for it; Off gives the
-                 plain Game Boy look. A file from 2.2 or before has no
-                 such line, so Auto. See Super Game Boy below.
+  Super Game Boy = Auto  AGA and RTG: Auto shows the Super Game Boy
+                 colours and border of cartridges made for it; Off
+                 gives the plain Game Boy look. A file from 2.2 or
+                 before has no such line, so Auto. See Super Game Boy
+                 below.
   Joy type = Keyboard Only  RTG: the menu's Joy type (Amiga JoyStick,
                  Keyboard Only, CD32 Joypad or Standard Joypad). Written
                  when you pick one in the menu; it wins over the one
@@ -142,11 +160,12 @@ the Game Boy sees that button held (keyboard, joystick or pad). If a
 pad button flickers or does not fill its box, try the other Pad line.
 
 ## Super Game Boy
-RTG program only. Cartridges made for the Super Game Boy send it their
-colours and a border picture; the RTG program shows them as the Super
-Game Boy did: the game in its colours, with the border round it in
-place of the screen surround. The whole border is on the screen (the
-game is drawn a size smaller where it would not fit).
+AGA and RTG programs (not AGA 030). Cartridges made for the Super Game
+Boy send it their colours and a border picture; the programs show them
+as the Super Game Boy did: the game in its colours, with the border
+round it (on RTG in place of the screen surround). The whole border is
+on the screen (on RTG the game is drawn a size smaller where it would
+not fit).
 
 Options menu, Super Game Boy: ticked (the default) is Auto, unticked
 is Off, the plain Game Boy look. The tick writes the line
@@ -204,8 +223,12 @@ Emulation Speed box (never active):
              Boy = Auto). A file with Super Game Boy = Auto and
              Bezel = Off shows as Auto, with the bezel on.
   Scanlines  Off or On, the Scanlines line.
+  Style      the scanline style (Hard 25%, 50%, 75%, Blended light,
+             Blended, Blended strong), the ScanlineStyle line.
 ```
-Both follow the Options menu ticks and the other way round.
+All three follow the Options menu and the other way round. In the
+RTG classic menu, Scanline style is in the Options menu and Style
+takes the place of the Refresh row.
 
 Joy type (RTG, big and classic menu): the one you pick is kept at once
 in AmiGameBoy.config (Joy type line) and comes back the next time the
@@ -216,7 +239,7 @@ program starts, without Save Prefs.
   dual-mode cartridges run in mono.
 - Cartridges over 2 MB (refused).
 - The link cable, the Game Boy Camera and the Game Boy Printer.
-- AGA and AGA 030: Super Game Boy features. RTG: the Super Game Boy's
+- AGA 030: Super Game Boy features. AGA and RTG: the Super Game Boy's
   own sound, and players 3 and 4 in its multi-player games.
 - From the original menu, not connected in this version: frozen games
   (snapshots), cheats and the monitor. Keyboard, joystick and CD32 pad
@@ -275,6 +298,10 @@ screens, with Surround and Scanlines in it, and keeps the Joy type in
 AmiGameBoy.config.
 Version 2.5.1 fixes the Super Game Boy colours of Arcade Classic No. 1
 and a crash after picking a cartridge with a long file name.
+Version 2.6 plays at 60 Hz by default (50 Hz and PAL Smooth in the
+Screen setting), brings the Super Game Boy to the AGA program, the
+seven scanline styles to RTG and Wzonka-Lad 1.12's fixes, and fixes
+the black screen in Castlevania Legends.
 
 ## Source and building
 

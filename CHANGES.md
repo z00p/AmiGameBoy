@@ -1,5 +1,81 @@
 # Changes
 
+## 2.6
+
+AmiGameBoy 2.6, community version: a Game Boy and Game Boy Color emulator for AGA
+Amigas, on the AGA screen or a graphics board. By Juan Antonio Gómez Gálvez
+(AmiGameBoy: menu and display), Ville Helin (Wzonka-Lad: the Game Boy engine)
+and z00p (community version: sound, Game Boy Color, Super Game Boy). Also on
+Aminet: misc/emu/AmiGameBoyCE.lha.
+
+**New**
+- **60 Hz by default** (all three programs): the menu's Screen setting has
+  three choices: NTSC (60Hz), the new default, plays at full speed with one
+  picture for each screen frame, for HDMI and modern displays; PAL (50Hz) is
+  2.5's timing, for 15 kHz CRTs that don't take 60 Hz; PAL Smooth gives even
+  motion on a 50 Hz screen at about 84% speed. Kept in AmiGameBoy.config as
+  Pacing = 60 Hz | 50 Hz | Smooth (written when you change it).
+- **Super Game Boy on the AGA program**: cartridges made for the Super Game
+  Boy show its colours and border on the AGA screen too, as on RTG, with the
+  same Super Game Boy tick in the Options menu. AGA 030 stays mono.
+- **Scanline styles** (RTG): seven settings, the same as in the other
+  community emulators: Off, Hard 25%, Hard 50%, Hard 75%, Blended light,
+  Blended and Blended strong. Scanlines On/Off plus a Style choice, in the
+  Options menu and the big menu (Style takes the place of the classic menu's
+  Refresh row). Config: Scanlines = On | Off and ScanlineStyle = 25 | 50 | 75 |
+  blendlight | blend | blendstrong. Scanlines cover the game only, not the
+  bezel or the Super Game Boy border.
+- **Wzonka-Lad 1.12 fixes**: Ville Helin's latest processor, timer,
+  interrupt and sound fixes (AGA and RTG; AGA 030 without the new timer, which
+  costs too much on a 68030). blargg's cpu_instrs, instr_timing and dmg_sound
+  tests now pass.
+
+**Fixes**
+- **Castlevania Legends** (Super Game Boy, AGA and RTG): the picture went
+  black about ten seconds into stage 1. The game's sound code writes to the
+  pad register in a way that looks like an empty Super Game Boy packet, which
+  was run as a one-byte one and blacked the palette. Empty packets are now
+  ignored, as on the real Super Game Boy. In since 2.3.
+
+**Upgrading from 2.5.1**: unpack over it. AmiGameBoy.config and the saves are
+kept. A file without a Pacing line plays at 60 Hz: pick PAL (50Hz) in the menu
+for a 50 Hz CRT.
+
+**Requirements**: as 2.5.1. AGA and AmigaOS 3.0 or later. AGA 030: 68020 or
+better, a 68030/50 for full speed. AGA and RTG: a PiStorm-class machine; RTG
+also needs Picasso96 and a 16-bit screen mode. The RTG program can't choose
+the HDMI rate: on a PiStorm it is set at boot in the Emu68 config.txt.
+
+**Known issues**: none.
+
+**Tried on real hardware**: an A1200 with a PiStorm (AGA, AGA 030 and RTG,
+HDMI 1080p 60): Castlevania Legends, Arcade Classic No. 1 and Super Mario Land
+2 with the Super Game Boy on AGA and RTG; the three Screen choices and the
+setting kept after a restart; the seven scanline styles, kept after a
+restart; Wario Land 3 in colour on AGA; Link's Awakening DX in Super Game Boy
+mode on RTG; Dangerous Demolition in colour on RTG; Super Mario Land 2 on AGA
+030.
+
+**Tested in WinUAE**: blargg and mooneye test ROMs; dmg_sound 12/12 on AGA and
+RTG; the Super Game Boy cartridges of 2.5.1; with the new parts left out the
+programs are byte for byte those of 2.5.1.
+
+**Install**: unpack AmiGameBoy-2.6.lha and start AGA, AGA 030 or RTG in the
+AmiGameBoy drawer. ReadMe.txt and AmiGameBoy.guide have the keys, the pad, the
+settings and the saves. No games are included: use cartridge images you may
+legally have.
+
+**Credits**: Juan Antonio Gómez Gálvez (AmiGameBoy: menu and display), Ville
+Helin (Wzonka-Lad: the Game Boy engine and its 1.12 fixes) and z00p (community
+version, sound, Game Boy Color, Super Game Boy, big menu); Multivac (icons and
+graphics in Juan's original), Ventzislav Tzvetkov (later small fixes to
+Wzonka-Lad), Afrotechmods / FAmiga (CD32 pad read).
+
+**Problems**: please open an issue with the game, the program (AGA, AGA 030 or
+RTG), your machine and what you saw.
+
+SHA-256 of AmiGameBoy-2.6.lha: @SHA@
+
 ## 2.5.1
 
 AmiGameBoy 2.5.1, community version: a Game Boy and Game Boy Color emulator for AGA

@@ -658,6 +658,13 @@ gbc_line:
 	lea	gbc_ck,a1
 	add.l	d0,a1
 	lea	gbc_lbuf+GBC_LB,a0
+	IFD	SGB_AGA			; a Super Game Boy cart: the block palettes' pens (sgbaga.s)
+	tst.b	sgb_on
+	beq.s	.ansgb
+	jsr	sgb_aconv
+	bra.s	.acdone
+.ansgb:
+	ENDC
 	lea	gbc_pen,a2
 	moveq	#160/8-1,d1
 	moveq	#0,d0
@@ -666,6 +673,9 @@ gbc_line:
 	move.b	(a2,d0.w),(a1)+
 	ENDR
 	dbra	d1,.ca
+	IFD	SGB_AGA
+.acdone:
+	ENDC
 	ELSE
 ; bytes -> screen words into the frame (gbc_rgb has 128 entries: bit 6 needs no mask)
 	move.l	gb_scanlines,d0

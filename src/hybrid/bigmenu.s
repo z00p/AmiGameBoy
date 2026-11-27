@@ -398,6 +398,10 @@ bm_layout:
 	move.w	#309-272,MainMenuText6+4	; " Control " over its box
 	move.l	#MainMenuText8,MainMenuText6+16	; no " Emulation Speed "
 	move.w	#MainMenu_CNT,bm_mmcnt	; the Scanlines cycle made too
+	IFD	GBC_RSTYLE		; 2.6: Refresh becomes the Scanline style (scanlines.s)
+	lea	MainMenuNGads,a0
+	jsr	bm_stylay
+	ENDC
 	st	bm_lay
 	bsr	bm_lsync		; the lists as the settings are
 .x:	movem.l	(sp)+,d0-d2/a0-a1
@@ -545,6 +549,9 @@ bm_gscan:
 	move.b	d7,gbc_rscanon
 	lea	gbc_rmname1,a3
 	jsr	gbc_rmsave
+	IFD	GBC_RSTYLE		; the style's line too (scanlines.s)
+	jsr	gbc_rssavesty
+	ENDC
 	jsr	gbc_rmsync
 .x:	movem.l	(sp)+,d0-d7/a0-a6
 	rts
@@ -784,6 +791,11 @@ bm_exit:
 	BMSTEP	$20
 	jsr	RmnFreeAll
 	bsr	bm_libs
+	IFD	GBC_RSTYLE
+	IFD	GBC_BIGLAYOUT
+	jsr	bm_chclose		; chooser.gadget (scanlines.s)
+	ENDC
+	ENDC
 	sf	bm_on
 .x:	rts
 

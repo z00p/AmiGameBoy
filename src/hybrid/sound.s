@@ -62,12 +62,52 @@ NR10	=RRAM+$1f10
 NR52	=RRAM+$1f26
 
 ; ignore a register write while the APU is off (NR52 bit 7 clear)
+	IFD	WZ112_APUOFF
+WZ112_SNDIN	SET	1
+	ENDC
+	IFD	WZ112_APUSEQ
+WZ112_SNDIN	SET	1
+	ENDC
+	IFD	WZ112_APUOFF
+WZ112_PWOFF	SET	1
+	ENDC
+	IFD	WZ112_SWEEP
+WZ112_PWOFF	SET	1
+	ENDC
+	IFND	WZ112_SNDIN
 SND_POWERED	MACRO
 	btst	#7,NR52
 	bne.w	.pw\@
 	rts
 .pw\@:
 	ENDM
+	ELSE
+; Wzonka-Lad 1.12 (wz112snd.s), the same 14 bytes: WZ112_APUSEQ brings the divider up to now
+; first (its frame sequencer steps before this write); WZ112_APUOFF: \1 = what a write does
+; while the APU is off (the DMG's length counters)
+SND_POWERED	MACRO
+	IFD	WZ112_APUSEQ
+	jsr	hy_sndsync		; (ends in tst.b NR52)
+	ELSE
+	tst.b	NR52
+	ENDC
+	bmi.s	.pw\@
+	IFD	WZ112_APUOFF
+	IFNC	'\1',''
+	jmp	\1
+	ELSE
+	rts
+	nop
+	nop
+	ENDC
+	ELSE
+	rts
+	nop
+	nop
+	ENDC
+.pw\@:
+	ENDM
+	ENDC
 
 ; ---- set-up, after CongelaAMIGA: samples, voices on (silent)
 HySndInit:
@@ -790,8 +830,14 @@ HySwCalc:
 	moveq	#7,d2
 	and.b	NR10,d2
 	lsr.w	d2,d1
+	IFD	WZ112_SWEEP
+	jsr	hy_swdir		; WZ112_SWEEP: negate noted (wz112snd.s)
+	beq.w	.add
+	nop
+	ELSE
 	btst	#3,NR10
 	beq.w	.add
+	ENDC
 	sub.w	d1,d0
 	bra.w	.chk
 .add:	add.w	d1,d0
@@ -833,7 +879,12 @@ HySndStep:
 	bsr.w	.env
 	lea	HyCh4,a0
 	bsr.w	.env
-.wave:	tst.b	HyWaveDirty		; wave RAM written: new samples
+.wave:
+	IFD	WZ112_WAVE
+	jsr	hy_stepw		; WZ112_WAVE: the wave position kept near (+ tst.b HyWaveDirty)
+	ELSE
+	tst.b	HyWaveDirty		; wave RAM written: new samples
+	ENDC
 	beq.w	.x
 	bsr.w	HySndWave
 .x:	movem.l	(sp)+,HY_SND
@@ -929,20 +980,26 @@ HySndStep:
 	cnop	0,4
 hy_nr10:
 	SND_POWERED
+	IFD	WZ112_SWEEP
+	jmp	hy_nr10x		; WZ112_SWEEP: negate -> add disables channel 1
+	nop
+	nop
+	ELSE
 	or.b	#$80,d6
 	move.b	d6,NR10
+	ENDC
 	rts
 
 ; NRx1 duty, length (ch1, ch2)
 	cnop	0,4
 hy_nr11:
-	SND_POWERED
+	SND_POWERED	hy_off11
 	movem.l	HY_SND,-(sp)
 	lea	HyCh1,a0
 	bra.w	hy_sqlen
 	cnop	0,4
 hy_nr21:
-	SND_POWERED
+	SND_POWERED	hy_off21
 	movem.l	HY_SND,-(sp)
 	lea	HyCh2,a0
 hy_sqlen:
@@ -1072,7 +1129,11 @@ hy_nr23:
 hy_nr33:
 	SND_POWERED
 	movem.l	HY_SND,-(sp)
+	IFD	WZ112_WAVE
+	jsr	hy_w33			; WZ112_WAVE: the loaded countdown keeps its period
+	ELSE
 	lea	HyCh3,a0
+	ENDC
 	move.b	d6,C_FREQ+1(a0)
 	bsr.w	HySndPerWave
 hy_ff:	st	(a2,d7.l)		; write-only: reads $FF
@@ -1093,7 +1154,12 @@ hy_nr14:
 	bsr.w	HySndEnv
 	moveq	#64,d1
 	bsr.w	HySndTrig
+	IFD	WZ112_SWEEP
+	jsr	hy_swtrig		; WZ112_SWEEP: + no negate seen yet
+	nop
+	ELSE
 	move.w	C_FREQ(a0),HySwShadow
+	ENDC
 	move.b	NR10,d0
 	lsr.b	#4,d0
 	and.b	#7,d0
@@ -1126,7 +1192,11 @@ hy_x4:	movem.l	(sp)+,HY_SND
 hy_nr34:
 	SND_POWERED
 	movem.l	HY_SND,-(sp)
+	IFD	WZ112_WAVE
+	jsr	hy_w34			; WZ112_WAVE: as NR33; a trigger while playing corrupts
+	ELSE
 	lea	HyCh3,a0
+	ENDC
 	bsr.w	hy_freqhi
 	bsr.w	HySndPerWave
 	tst.b	d6
@@ -1142,13 +1212,22 @@ hy_nr34:
 	bsr.w	HyWaveRst
 .r:
 	ENDC
+	IFD	WZ112_WAVE
+	jsr	hy_w34t			; WZ112_WAVE: the wave position from the trigger
+	nop
+	ELSE
 	move.w	#256,d1
 	bsr.w	HySndTrig
+	ENDC
 	bra.w	hy_x4
 ; store (bit 6 reads back), frequency bits 8-10, length enable; d6 kept
 hy_freqhi:
+	IFD	WZ112_APULEN
+	jsr	hy_lenx			; WZ112_APULEN: the extra length clock (+ the two below)
+	ELSE
 	move.b	d6,d0
 	or.b	#$bf,d0
+	ENDC
 	move.b	d0,(a2,d7.l)
 	moveq	#7,d0
 	and.b	d6,d0
@@ -1178,7 +1257,7 @@ hy_nr30:
 ; NR31 wave length
 	cnop	0,4
 hy_nr31:
-	SND_POWERED
+	SND_POWERED	hy_off31
 	move.w	#256,HyCh3+C_LEN
 	move.l	d0,-(sp)
 	moveq	#0,d0
@@ -1210,7 +1289,7 @@ hy_nr32:
 ; NR41 noise length
 	cnop	0,4
 hy_nr41:
-	SND_POWERED
+	SND_POWERED	hy_off41
 	move.l	d0,-(sp)
 	moveq	#63,d0
 	and.b	d6,d0
@@ -1236,8 +1315,12 @@ hy_nr43:
 hy_nr44:
 	SND_POWERED
 	movem.l	HY_SND,-(sp)
+	IFD	WZ112_APULEN
+	jsr	hy_lenx44		; WZ112_APULEN (as hy_freqhi)
+	ELSE
 	move.b	d6,d0
 	or.b	#$bf,d0
+	ENDC
 	move.b	d0,(a2,d7.l)
 	lea	HyCh4,a0
 	btst	#6,d6
@@ -1264,8 +1347,12 @@ hy_nr50:
 ; NR52: bit 7 powers the APU; off clears NR10-NR51 and stops every channel
 	cnop	0,4
 hy_nr52:
+	IFD	WZ112_APUSEQ
+	jsr	hy_nr52x		; WZ112_APUSEQ: the same, the divider up to now first
+	ELSE
 	movem.l	HY_SND,-(sp)
 	tst.b	d6
+	ENDC
 	bmi.w	.on
 	btst	#7,NR52
 	beq.w	.x
@@ -1292,7 +1379,11 @@ hy_nr52:
 	move.w	#4,$dff0b4
 	clr.w	HySqTier
 	ENDC
+	IFD	WZ112_PWOFF
+	jsr	hy_pwoff		; WZ112_APUOFF, WZ112_SWEEP: the same and more
+	ELSE
 	clr.b	HySwEn
+	ENDC
 	bclr	#7,NR52
 	bsr.w	HySndAllVol
 	bsr.w	HySndStatus
@@ -1300,7 +1391,11 @@ hy_nr52:
 .on:	btst	#7,NR52
 	bne.w	.x
 	bset	#7,NR52
+	IFD	WZ112_APUSEQ
+	jsr	hy_pwon			; WZ112_APUSEQ: and its first step perhaps skipped
+	ELSE
 	clr.b	HySndStepN		; the frame sequencer starts again at step 0
+	ENDC
 	bsr.w	HySndStatus
 .x:	movem.l	(sp)+,HY_SND
 	rts
@@ -1312,8 +1407,14 @@ HySndOffRegs:				; $FF10-$FF25 as read after power off
 ; wave RAM: stored; the samples are rebuilt at the next step or trigger
 	cnop	0,4
 hy_wave:
+	IFD	WZ112_WAVE
+	jmp	hy_wavew		; WZ112_WAVE: while channel 3 plays, its byte or none
+	nop
+	nop
+	ELSE
 	move.b	d6,(a2,d7.l)
 	st	HyWaveDirty
+	ENDC
 	rts
 
 ; write table entries for $FF10-$FF26 (0 = keep Wzonka's)
@@ -1340,7 +1441,19 @@ HySndStepN:	dc.b	0		; frame sequencer step 0-7
 HyWaveDirty:	dc.b	0		; wave RAM written since the samples were built
 HyNoiseW:	dc.b	0		; noise sample on voice 3: 0 = 15-bit, $FF = 7-bit
 HySndPend:	dc.b	0		; VBLs to go before voice 3 DMA goes back on
+	IFD	WZ112_SWEEP
+HySwNeg:	dc.b	0		; a negate calculation since the trigger (WZ112_SWEEP)
+	ENDC
+	IFD	WZ112_APUSEQ
+HySndSkip:	dc.b	0		; $FF: the next DIV-APU edge is skipped (WZ112_APUSEQ)
+	ENDC
+	IFD	WZ112_WAVE
+HyWvIdx:	dc.b	0		; channel 3: the sample fetched at HyWvNext (WZ112_WAVE)
+	ENDC
 	even
+	IFD	WZ112_WAVE
+HyWvNext:	dc.l	0		; T-cycles (wz_now x 4)
+	ENDC
 HyNoiseP:	dc.w	400		; voice 3 period
 	IFD	HY_WAVERST
 HyWavePer:	dc.w	400		; voice 2 period (HyWaveRst)

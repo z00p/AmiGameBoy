@@ -289,6 +289,15 @@ gbc_rtg_show:
 	move.l	gbc_rbpr,d6
 	move.w	gbc_rscale,d5
 	moveq	#0,d7			; line
+	IFD	GBC_RSTYLE
+	tst.b	gbc_rscanon		; Scanlines On at 2x and up: Arnold's seven (scanlines.s)
+	beq.s	.nost
+	cmp.w	#2,d5
+	bcs.s	.nost
+	jsr	gbc_rscopy
+	bra.w	.rsdone
+.nost:
+	ENDC
 .ln:	tst.b	(a6)
 	bne.s	.chg
 	move.l	a0,a2			; changed since the last copy?
@@ -377,7 +386,13 @@ gbc_rtg_show:
 	addq.w	#1,d7
 	cmp.w	#144,d7
 	bne.w	.ln
+	IFD	GBC_RSTYLE
+.rsdone:
+	ENDC
 	sf	(a6)
+	IFD	GBC_RSDUMP		; test: the settings stepped, pictures kept (scanlines.s)
+	jsr	gbc_rsdump
+	ENDC
 	tst.b	gbc_rdbuf
 	beq.s	.nf
 	move.l	gbc_rscr,a0		; show it: RyOffset = its half, ScrollVPort
@@ -781,6 +796,11 @@ gbc_rtg_menumode:
 	moveq	#0,d0			; rank 0: 640xGBC_RTGMH
 	cmp.l	#640,d2
 	bne.s	.area
+	IFD	GBC_RTGMH2		; e.g. 270: doublescan 540 lines, exactly half of 1080, so the VideoCore
+	cmp.l	#GBC_RTGMH2,d3		; scaler draws each pixel as a clean 2x4 block (23 Nov); this first,
+	beq.s	.rk
+	moveq	#1,d0			; then 640xGBC_RTGMH
+	ENDC
 	IFD	GBC_RTGMH
 	cmp.l	#GBC_RTGMH,d3		; e.g. 256: the PAL hires size, so the scaler keeps Juan's tall pixels (15 Nov)
 	ELSE
@@ -1024,6 +1044,12 @@ gbc_rcfg:
 	beq.s	.nx
 	move.l	(a4),a2
 	move.b	13(a4),(a2)
+	IFD	GBC_RSTYLE		; Arnold's single words: On and a style too (scanlines.s)
+	move.b	12(a4),d0
+	beq.s	.skip
+	subq.b	#1,d0
+	move.b	d0,gbc_rstyle
+	ENDC
 	bra.s	.skip
 .nx:	lea	14(a4),a4
 	bra.s	.ent
@@ -1089,6 +1115,46 @@ gbc_rcfgtab:
 	dc.w	1
 	dc.l	gbc_rscanon,gbc_rkscan,gbc_rkoff
 	dc.w	0
+	IFD	GBC_RSTYLE		; 2.6: Arnold's words (scanlines.s); what's high byte: the style + 1
+	dc.l	gbc_rscanon,gbc_rkscan,gbc_rkw0
+	dc.w	0
+	dc.l	gbc_rscanon,gbc_rkscan,gbc_rkw25
+	dc.w	$0101
+	dc.l	gbc_rscanon,gbc_rkscan,gbc_rkw50
+	dc.w	$0201
+	dc.l	gbc_rscanon,gbc_rkscan,gbc_rkw75
+	dc.w	$0301
+	dc.l	gbc_rscanon,gbc_rkscan,gbc_rkh25
+	dc.w	$0101
+	dc.l	gbc_rscanon,gbc_rkscan,gbc_rkh50
+	dc.w	$0201
+	dc.l	gbc_rscanon,gbc_rkscan,gbc_rkh75
+	dc.w	$0301
+	dc.l	gbc_rscanon,gbc_rkscan,gbc_rkbl
+	dc.w	$0401
+	dc.l	gbc_rscanon,gbc_rkscan,gbc_rkbn
+	dc.w	$0501
+	dc.l	gbc_rscanon,gbc_rkscan,gbc_rkbs
+	dc.w	$0601
+	dc.l	gbc_rstyle,gbc_rksty,gbc_rkw25	; "ScanlineStyle = ..."
+	dc.w	0
+	dc.l	gbc_rstyle,gbc_rksty,gbc_rkw50
+	dc.w	1
+	dc.l	gbc_rstyle,gbc_rksty,gbc_rkw75
+	dc.w	2
+	dc.l	gbc_rstyle,gbc_rksty,gbc_rkh25
+	dc.w	0
+	dc.l	gbc_rstyle,gbc_rksty,gbc_rkh50
+	dc.w	1
+	dc.l	gbc_rstyle,gbc_rksty,gbc_rkh75
+	dc.w	2
+	dc.l	gbc_rstyle,gbc_rksty,gbc_rkbl
+	dc.w	3
+	dc.l	gbc_rstyle,gbc_rksty,gbc_rkbn
+	dc.w	4
+	dc.l	gbc_rstyle,gbc_rksty,gbc_rkbs
+	dc.w	5
+	ENDC
 	ENDC
 	IFD	SGB_OPT			; "Super Game Boy = Auto|Off" (sgb.s)
 	dc.l	sgb_opt,sgb_kname,sgb_kauto
@@ -1108,6 +1174,10 @@ gbc_rkscan:	dc.b	"SCANLINES",0
 gbc_rkon:	dc.b	"ON",0
 gbc_rkoff:	dc.b	"OFF",0
 	even
+	ENDC
+
+	IFD	GBC_RSTYLE
+	include	"scanlines.s"		; Arnold's seven scanline settings (2.6)
 	ENDC
 
 	IFD	GBC_BIGMENU

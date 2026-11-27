@@ -30,7 +30,9 @@
 ; at the pause inserts ROM2, powers it on, Continues after its pause. With HY_HOLD the
 ; grabs compare with the cartridge-inside build. HY_MENUTEST=3: as 1, saving the battery
 ; file (ROM name .sav) at the pause; HY_MENUTEST=4: as 3, the file written even when the
-; battery RAM did not change (Juan's SaveBatt skips that). HY_MENUPIC (with AutoExit,
+; battery RAM did not change (Juan's SaveBatt skips that). HY_MENUTEST=5 (HY_PACEOPT): as 1,
+; the Screen setting changed to HY_MENUT5 (0 50 Hz, 1 60 Hz, 2 Smooth) and Save Prefs at the
+; pause. HY_MENUPIC (with AutoExit,
 ; GBC_RENDER): the last picture to GB:AmiGB.prof and the result to GB:AmiGB.result when
 ; AutoExit stops the engine.
 ; HY_LUPA: the launch words and return codes of the shared launch contract (lupa.s).
@@ -248,6 +250,12 @@ HyAutoStart:
 	not.l	d2			; (SaveBatt writes when the sum differs from CheckId)
 	move.l	d2,CheckId
 	jsr	SaveBatt
+	ENDC
+	IFEQ	HY_MENUTEST-5
+	moveq	#HY_MENUT5,d2		; test (2.6): the Screen cycle changed to HY_MENUT5 at the pause, as
+	jsr	hy_pgad			; ControlGadgetUp would (config line), the gadget set to it, then
+	jsr	hy_pacesync		; Save Prefs and Continue
+	jsr	SavePrefs
 	ENDC
 	jsr	Continue
 	ENDC
@@ -490,7 +498,13 @@ HyMenuLeave:
 	IFND	NO_SOUND
 	bsr.w	HySndStop
 	ENDC
+	IFD	HY_PACEOPT		; PAL again (pacing.s)
+	jsr	hy_paceoff
+	ENDC
 	jsr	DescongelaAMIGA
+	IFD	HY_SYNCLOG		; test: PROGDIR:SyncLog<k>.bin (pacing.s)
+	jsr	hy_slsave
+	ENDC
 	IFD	HY_CRASHLOG
 	sf	cr_frozen
 	ENDC
@@ -530,10 +544,16 @@ HyMenuBack:
 
 ; ---- pacing from now: no catching up on the time spent in the menu; PAL or NTSC rate
 HyMenuPace:
+	IFD	HY_PACEOPT		; Smooth / 60 Hz (pacing.s)
+	jsr	hy_paceon
+	ENDC
 	move.l	HyVblN,HyVblSeen
 	clr.l	HyCreditF
 	sf	HySkipRun
 	rts
+	IFD	HY_PACEOPT		; the two hook calls (12 bytes) + Juan's menu's 16 (his PowerON and
+	ds.b	256-12-16		; gadget table, CNOP-rounded) + this = 256: the code behind keeps
+	ENDC				; its place modulo the 68030's 256-byte caches
 
 ; ---- battery RAM: Juan's ERAM0-3 -> memory_banks 0-3, the live bank -> $A000
 HyBattIn:
@@ -758,6 +778,10 @@ tHyErrType:	dc.b	4,"Unknown cartridge type",0,"Not supported yet",0
 	IFD	GBC_RTG
 tHyErrRtg:	dc.b	4,"No RTG screen",0,"Needs a 16-bit Picasso96 mode",0
 	ENDC
+	IFD	HY_REL26		; the 2.6 release (with HY_REL20 to HY_REL251)
+HyAb0:		dc.b	"AmiGameBoy 2.6 community version",0
+HyAb1:		dc.b	"(27 November 2026)",0
+	ELSE
 	IFD	HY_REL251		; the 2.5.1 release (with HY_REL20 to HY_REL25)
 HyAb0:		dc.b	"AmiGameBoy 2.5.1 community version",0
 HyAb1:		dc.b	"(26 November 2026)",0
@@ -795,6 +819,7 @@ HyAb1:		dc.b	"(14 November 2026)",0
 	ENDC
 	ENDC
 	ENDC
+	ENDC
 HyAb2:		dc.b	"Menu and display:",0
 HyAb4:		dc.b	"Game Boy engine (Wzonka-Lad):",0
 	IFD	HY_CREDVH		; Wzonka-Lad is Ville Helin's (GitHub issue #7)
@@ -805,6 +830,13 @@ HyAb5:		dc.b	"Ville Helin, Ventzislav Tzvetkov",0
 HyAb6:		dc.b	"Icons and Graphics: Multivac",0
 HyAb7:		dc.b	"Community version: z00p",0
 HyAb8:		dc.b	"GNU GPL v2, no warranty",0
+	IFD	HY_REL26
+HyWTitle:	dc.b	"AmiGameBoy 2.6",0
+HySTitle:	dc.b	"AmiGameBoy 2.6"
+	IFND	HY_CREDZ		; (the three authors need the room)
+		dc.b	" community version"
+	ENDC
+	ELSE
 	IFD	HY_REL251
 HyWTitle:	dc.b	"AmiGameBoy 2.5.1",0
 HySTitle:	dc.b	"AmiGameBoy 2.5.1"
@@ -853,6 +885,7 @@ HySTitle:	dc.b	"AmiGameBoy 2.0 community version"
 	ELSE
 HyWTitle:	dc.b	"AmiGameBoy 1.0",0
 HySTitle:	dc.b	"AmiGameBoy 1.0 community version"
+	ENDC
 	ENDC
 	ENDC
 	ENDC

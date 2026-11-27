@@ -80,6 +80,9 @@ sgb_install:
 ; ---- P1 write: d6.b = value, d7.l = address, a2 = memory; only d6/a6 free (write handler).
 	cnop	0,4
 sgb_w00:
+	IFD	SGB_P1LOG		; test: every P1 write from frame SGB_P1LOG on, a ring
+	jsr	sgb_p1lw
+	ENDC
 	movem.l	d0-d2/a0,-(sp)
 	move.b	d6,d0
 	move.b	sgb_p1,d1		; the last value written
@@ -129,8 +132,12 @@ sgb_w00:
 	clr.b	sgb_inpk
 	moveq	#7,d1			; packets in the command (header bits 0-2, 0 = 1)
 	and.b	sgb_buf,d1
+	IFD	SGB_LEN0		; 2.6: length 0 is not a command and is dropped (as SameBoy does: a
+	beq.s	.abort			; "malformed" command); Castlevania Legends' sound driver writes $08 to P1 (a reset
+	ELSE				; pulse), its pad reads then clock in 128 zero bits = a black PAL01
 	bne.s	.len
 	moveq	#1,d1
+	ENDC
 .len:	move.w	sgb_bitn,d2
 	lsr.w	#7,d2
 	cmp.w	d1,d2
@@ -613,6 +620,13 @@ sgb_frame:
 .cp:	bsr.s	.copy
 .bd:
 	IFD	SGB_BORD
+	IFD	SGB_AGA			; AGA: into the planes (fixed pens: a new backdrop is only
+	tst.b	sgb_bdirty		; colours, sgb_amklut)
+	beq.s	.y
+	tst.b	gbc_aga_onf
+	beq.s	.y
+	jsr	sgb_abdraw
+	ELSE
 	tst.b	sgb_bvalid
 	beq.s	.y
 	move.w	sgb_pal,d0		; the backdrop is the border's colour 0 too
@@ -627,6 +641,7 @@ sgb_frame:
 	bsr.w	sgb_bfit		; the whole border on the screen: maybe a smaller scale now
 	ENDC
 	bsr.w	sgb_bdraw
+	ENDC
 .y:
 	ENDC
 	movem.l	(sp)+,d0-d7/a0-a6
@@ -912,7 +927,14 @@ sgb_mklut:
 	move.w	d1,24(a1)
 	addq.l	#2,a1
 	dbra	d7,.g
-.have:	lea	sgb_pal,a0		; the 16 colours in the screen's format
+	IFD	SGB_AGA			; AGA: pens and copper colours (sgbaga.s)
+.have:	jsr	sgb_amklut
+	movem.l	(sp)+,d0-d7/a0-a3
+	rts
+	ELSE
+.have:
+	ENDC
+	lea	sgb_pal,a0		; the 16 colours in the screen's format
 	lea	sgb_sw,a1
 	moveq	#16-1,d7
 .s:	move.w	(a0)+,d0
@@ -1173,6 +1195,7 @@ sgb_bfit:
 	rts
 	ENDC
 
+	IFND	SGB_AGA			; (AGA: sgb_abdraw, sgbaga.s)
 ; ---- the border onto the RTG screen, both buffers: every pixel but the picture's, at the
 ; picture's scale around it (the game at border pixel 48, 40), black where the border is not,
 ; cut to the screen. OS alive (gbc_rtg_open) or frozen (sgb_frame). Keeps every register.
@@ -1327,6 +1350,7 @@ sgb_bopen:
 	tst.b	sgb_bvalid
 .x:	rts
 	ENDC
+	ENDC
 
 	IFD	SGB_DUMP
 ; ---- test: GB:AmiGB.sgb at AutoExit: "SGB1", on, col, mask, mlt, player, bvalid, gotpal, then the
@@ -1389,8 +1413,41 @@ sgb_dwr:
 	IFD	SGB_TLOG
 	dc.l	sgb_tlogn,4+16*SGB_TLOGN,sgb_tlvram,$2000+256+4096
 	ENDC
+	IFD	SGB_P1LOG
+	dc.l	sgb_p1n,4+16*2048
+	ENDC
 	ENDC
 	dc.l	0
+	ENDC
+
+	IFD	SGB_P1LOG
+; ---- test (27 Nov, Castlevania Legends): P1 writes, 16 bytes each in a ring of 2048 (sgb_p1n
+; counts all): HyFrames, the value, sgb_inpk, sgb_rdy, sgb_stopw, a0 - a2 (the Game Boy code
+; pointer against memory), d7 (the address). d6/a6 only (write handler).
+	SECTION	sgbp1code,CODE
+sgb_p1lw:
+	cmp.l	#SGB_P1LOG,HyFrames
+	bcs.s	.x
+	movem.l	d0/a1,-(sp)
+	move.l	sgb_p1n,d0
+	addq.l	#1,sgb_p1n
+	and.l	#2047,d0
+	lsl.l	#4,d0
+	lea	sgb_p1buf,a1
+	add.l	d0,a1
+	move.l	HyFrames,(a1)+
+	move.b	d6,(a1)+
+	move.b	sgb_inpk,(a1)+
+	move.b	sgb_rdy,(a1)+
+	move.b	sgb_stopw,(a1)+
+	move.w	d4,(a1)+		; the Game Boy's HL and BC
+	move.w	d5,(a1)+
+	move.l	d7,(a1)+		; the address written
+	movem.l	(sp)+,d0/a1
+.x:	rts
+	SECTION	sgbp1bss,BSS
+sgb_p1n:	ds.l	1
+sgb_p1buf:	ds.b	16*2048
 	ENDC
 
 	IFD	SGB_TLOG
@@ -1524,8 +1581,13 @@ sgb_snap:
 	moveq	#96-1,d0
 .c:	move.b	(a0)+,(a1)+
 	dbra	d0,.c
+	IFD	SGB_AGA			; AGA: the pens' picture as 5-5-5 words (sgbaga.s)
+	jsr	sgb_afb
+	moveq	#2,d0
+	ELSE
 	moveq	#0,d0
 	move.b	gbc_pixfmt,d0
+	ENDC
 	move.l	d0,(a1)+
 	lea	gbc_fb,a0
 	move.w	#160*144/2-1,d0

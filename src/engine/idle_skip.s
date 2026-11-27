@@ -323,7 +323,11 @@ idle_nf2:
 		bpl.w	idle_no0			;a poll of ROM: not taken.
 		lea	(a2,d2.l),a4
 idle_ld:	move.b	(a4),d6				;a4 = the polled byte.
+		IFD	WZ112_TIMER
+		jsr	wz_ild				;WZ112_TIMER: no record for a poll of
+		ELSE					;DIV-TAC (wz112.s; 6 bytes)
 		addq.b	#1,idl_nld
+		ENDC
 		cmp.b	#2,idl_nld
 		beq.s	idle_ld2
 		bhi.s	idle_ld3
@@ -480,7 +484,11 @@ idle_hl:	cmp.b	#$be,(a0)
 		IFD	IDL_STAT
 		addq.l	#1,idl_cnt+16
 		ENDC
+		IFD	WZ112_TIMER
+		jsr	wz_ihl				;(as idle_ld; 6 bytes)
+		ELSE
 		clr.b	idl_known			;the record is overwritten from here.
+		ENDC
 		lea	(a2,d2.l),a6			;the byte, as READ_D2_TO_D6.
 		move.b	1(a0),d7			;our JR
 		btst	#3,d7

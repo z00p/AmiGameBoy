@@ -505,7 +505,11 @@ HelpPage:
 	LEA	HelpPagePunts,A1
 	BSR	Control
 
+	IFD	GBC_RSTYLE		; hybrid 2.6: out of BSR range with the Scanline style's menu data
+	JSR	CloseHelpPageWindow
+	ELSE
 	BSR	CloseHelpPageWindow
+	ENDC
 	BSR	EnaMouse
 	RTS
 
@@ -850,8 +854,13 @@ NoLoRefres:
 NoReset:
 ; -=-=-
 	MOVEQ	#0,D1
+	IFD	HY_PACEOPT		; hybrid: Screen 0 PAL, 1 NTSC, 2 PAL Smooth (hybrid/pacing.s)
+	CMP.B	#1,$0F(A5)
+	BEQ.S	NoEsNTSC
+	ELSE
 	TST.B	$0F(A5)			; Frecuencia pantalla.
 	BNE.S	NoEsNTSC
+	ENDC
 	MOVE.W	#$20,D1
 NoEsNTSC:MOVE.W	D1,$DFF1DC
 ; -=-=-
@@ -3343,6 +3352,9 @@ MenuOptions:
 	DC.L	gbc_rmbez		; hybrid: Bezel (RTG, hybrid/rmenu.s)
 	DC.L	gbc_rmscan		; hybrid: Scanlines
 	ENDC
+	IFD	GBC_RSTYLE
+	DC.L	SubMenuSty		; hybrid 2.6: Scanline style (hybrid/scanlines.s)
+	ENDC
 	ENDC
 	IFD	GBC_CCMENU
 	DC.L	gbc_rmcc		; hybrid: LCD Colours (AGA, RTG, hybrid/rmenu.s)
@@ -3377,6 +3389,10 @@ SubMenuExitmode:
 	DC.L	NoChange		; No Change.
 	DC.L	ForcePAL		; Force to PAL
 	DC.L	ForceNTSC		; Force to NTSC
+	IFD	GBC_RSTYLE
+SubMenuSty:
+	DCB.L	6,gbc_rmsty		; hybrid: the six styles (D3 = which)
+	ENDC
 
 
 ; <=-------------------------------------------------------=>
@@ -3419,6 +3435,12 @@ MainMenuPunts:
 	IFD	GBC_BIGLAYOUT		; hybrid: the big RTG menu's Surround and Scanlines (bigmenu.s)
 	DC.L	GD_Veloz,bm_gsur
 	DC.L	GD_Scan,bm_gscan
+	IFD	GBC_RSTYLE		; hybrid 2.6: Refresh is the Scanline style (hybrid/scanlines.s)
+	DC.L	GD_Refresh,bm_gsty
+	ENDC
+	ENDC
+	IFD	HY_PACEOPT		; hybrid: Screen = Pacing, into AmiGameBoy.config (pacing.s)
+	DC.L	GD_ScrMode,hy_pgad
 	ENDC
 	DC.L	0,0
 MainMenuValues:

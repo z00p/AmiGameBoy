@@ -105,6 +105,14 @@ HY_RCFG	SET	1
 	move.l	sp,a0
 	jsr	gbc_cccfg
 	ENDC
+	IFD	SGB_AGA			; "Super Game Boy = Auto | Off" (AGA, sgbaga.s)
+	move.l	sp,a0
+	jsr	sgb_acfg
+	ENDC
+	IFD	HY_PACEOPT		; "Pacing = 60 Hz | 50 Hz | Smooth" (pacing.s)
+	move.l	sp,a0
+	jsr	hy_pacecfg
+	ENDC
 	IFD	HY_CD32KIT		; "Pad = CD32 pad | KTRL CD32+" (cd32read.s)
 	move.l	sp,a0
 	jsr	HyCD32Cfg
@@ -127,6 +135,9 @@ HY_RCFG	SET	1
 	move.l	d4,d1
 	jsr	-36(a6)
 .done:
+	IFD	HY_PACEOPT		; the Pacing line (or 60 Hz) into the menu's Screen (pacing.s)
+	jsr	hy_pacesync
+	ENDC
 	IFD	HY_PADTEST		; test: the table as read -> PROGDIR:AmiGameBoy.padmap
 	move.l	#HyPadTestName,d1
 	move.l	#1006,d2
@@ -354,9 +365,18 @@ HyPadCfgText:
 	ENDC
 	ENDC
 	IFD	GBC_RSCAN
+	IFD	GBC_RSTYLE		; 2.6: Arnold's seven settings (scanlines.s)
+	dc.b	"; Scanlines = On darkens part of each picture line, like a CRT. ScanlineStyle:",10
+	dc.b	"; 25, 50 or 75 (Hard: the lower half of each line that much darker) or",10
+	dc.b	"; blendlight, blend or blendstrong (Blended: mixed with the line below,",10
+	dc.b	"; then darker). The style is kept while Scanlines is Off. (RTG only)",10
+	dc.b	"Scanlines = Off",10
+	dc.b	"ScanlineStyle = 50",10
+	ELSE
 	dc.b	"; Scanlines = On darkens the last screen line of each picture line,",10
 	dc.b	"; like a CRT. (RTG only)",10
 	dc.b	"Scanlines = Off",10
+	ENDC
 	ENDC
 	IFD	GBC_CCOPT
 	dc.b	"; Colours: Raw (as the game sets them) or LCD (softer, as the Game Boy",10
@@ -369,8 +389,20 @@ HyPadCfgText:
 	ENDC
 	IFD	SGB_OPT
 	dc.b	"; Super Game Boy = Auto: cartridges made for the Super Game Boy get its",10
+	IFD	SGB_AGA
+	dc.b	"; colours and border. Off: the plain Game Boy look. (RTG and AGA)",10
+	ELSE
 	dc.b	"; colours and border. Off: the plain Game Boy look. (RTG only)",10
+	ENDC
 	dc.b	"Super Game Boy = Auto",10
+	ENDC
+	IFD	HY_PACEOPT
+	dc.b	"; Pacing (the menu's Screen setting): 60 Hz runs the game at full speed",10
+	dc.b	"; with every picture shown, on a screen that takes 60 Hz (a TV, a scaler,",10
+	dc.b	"; HDMI). 50 Hz: for a PAL-only CRT; full speed, but one picture in five",10
+	dc.b	"; is skipped, so scrolling steps. Smooth: 50 Hz with every picture shown,",10
+	dc.b	"; the game at 84 % speed.",10
+	dc.b	"Pacing = 60 Hz",10
 	ENDC
 HyPadCfgEnd:
 	even

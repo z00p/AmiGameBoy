@@ -764,8 +764,12 @@ do_joystick:
 		bsr.w	debug_joypad_wanted
 		ENDIF
 
+		IFD	WZ112_JOYIRQ
+		jmp	wz_p1w				;AmiGameBoy WZ112_JOYIRQ (wz112.s; 6 bytes)
+		ELSE
 		cmp.b	#$03,d6				;type request?
 		beq.s	do_joystick_type_request	;yes.
+		ENDC
 
 		btst	#5,d6
 		beq.s	do_joystick_but
@@ -1501,6 +1505,16 @@ GBC_RD:		MACRO				; \1 = address register (upper word 0), \2 = destination
 		move.b	d6,\2
 		bra.s	gbc_rdx\@
 gbc_rdram\@:
+		ENDC
+		IFD	WZ112_APUSEQ			;AmiGameBoy WZ112_APUSEQ (wz112.s): NR52
+		IFND	SPIKE				;read at its cycle (AND (HL), blargg's
+		cmp.w	#$ff26,\1			;sync_apu poll)
+		bne.s	gbc_rdp\@
+		jsr	wz_rd26
+		move.b	d6,\2
+		bra.s	gbc_rdx\@
+gbc_rdp\@:
+		ENDC
 		ENDC
 		move.b	(a2,\1.l),\2
 gbc_rdx\@:

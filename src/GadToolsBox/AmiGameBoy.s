@@ -1302,6 +1302,9 @@ LCDFadeLabels:
 ScrModeLabels:
     DC.L    ScrModeLab0
     DC.L    ScrModeLab1
+    IFD     HY_PACEOPT              ; hybrid: Smooth pacing (hybrid/pacing.s)
+    DC.L    ScrModeLab2
+    ENDC
     DC.L    0
 
 RefreshLabels:
@@ -1327,6 +1330,9 @@ LCDFadeLab4:    DC.B    'Orange',0
 
 ScrModeLab0:    DC.B    'PAL (50Hz)',0
 ScrModeLab1:    DC.B    'NTSC (60Hz)',0
+    IFD     HY_PACEOPT
+ScrModeLab2:    DC.B    'PAL Smooth',0
+    ENDC
 
     CNOP    0,2
 
@@ -4665,6 +4671,43 @@ MainMenuNewMenu66:
     DC.L    0
     DC.W    $0009
     DC.L    0,0
+	IFD	GBC_RSTYLE		; AmiGameBoy 2.6, RTG: Scanline style, six ticks, one on (hybrid/scanlines.s)
+    DC.B    2,0
+    DC.L    gbc_rmstyn
+    DC.L    0
+    DC.W    0
+    DC.L    0,0
+    DC.B    3,0
+    DC.L    gbc_rmsty0
+    DC.L    0
+    DC.W    $0001
+    DC.L    $3E,0
+    DC.B    3,0
+    DC.L    gbc_rmsty1
+    DC.L    0
+    DC.W    $0001
+    DC.L    $3D,0
+    DC.B    3,0
+    DC.L    gbc_rmsty2
+    DC.L    0
+    DC.W    $0001
+    DC.L    $3B,0
+    DC.B    3,0
+    DC.L    gbc_rmsty3
+    DC.L    0
+    DC.W    $0001
+    DC.L    $37,0
+    DC.B    3,0
+    DC.L    gbc_rmsty4
+    DC.L    0
+    DC.W    $0001
+    DC.L    $2F,0
+    DC.B    3,0
+    DC.L    gbc_rmsty5
+    DC.L    0
+    DC.W    $0001
+    DC.L    $1F,0
+	ENDC
 	ENDC
 	IFD	GBC_CCMENU		; AmiGameBoy 2.1, AGA and RTG: LCD Colours (hybrid/rmenu.s)
 	IFND	GBC_RMENU
@@ -5235,6 +5278,11 @@ MainMenuGL:
     asl.l   #1,d1
     add.l   d1,a0
     move.w  (a0),d0
+	IFD	GBC_RSTYLE
+	IFD	GBC_BIGLAYOUT
+	jsr	bm_chpre		; hybrid: the Scanline style as a chooser, GadTools makes its label only
+	ENDC
+	ENDC
     move.l  a3,a0
     lea.l   BufNewGad,a1
     move.l  a4,a2
@@ -5250,6 +5298,11 @@ MainMenuCOK:
     lea.l   MainMenuGadgets,a0
     add.l   d0,a0
     move.l  a3,(a0)
+	IFD	GBC_RSTYLE
+	IFD	GBC_BIGLAYOUT
+	jsr	bm_chpost		; (MainMenuGadgets holds the chooser)
+	ENDC
+	ENDC
 MainMenuTL:
     tst.l   (a4)
     beq.s   MainMenuDN
@@ -5303,6 +5356,11 @@ MainMenuDN:
     suba.l  a1,a1
     jsr     GT_RefreshWindow(a6)
     jsr     MainMenuRender
+	IFD	GBC_RSTYLE
+	IFD	GBC_BIGLAYOUT
+	jsr	bm_chadd		; the chooser into the window
+	ENDC
+	ENDC
     moveq   #0,d0
 MainMenuDone:
     movem.l (sp)+,d1-d4/a0-a4/a6
@@ -5337,6 +5395,11 @@ MainMenuNMenu:
     move.l  MainMenuWnd,a0
     cmpa.l  #0,a0
     beq     MainMenuNWnd
+	IFD	GBC_RSTYLE
+	IFD	GBC_BIGLAYOUT
+	jsr	bm_chrem		; the chooser out first
+	ENDC
+	ENDC
     jsr     CloseWindow(a6)
     move.l  #0,MainMenuWnd
 MainMenuNWnd:
@@ -5347,6 +5410,11 @@ MainMenuNWnd:
     jsr     FreeGadgets(a6)
     move.l  #0,MainMenuGList
 MainMenuNGad:
+	IFD	GBC_RSTYLE
+	IFD	GBC_BIGLAYOUT
+	jsr	bm_chfree		; then freed
+	ENDC
+	ENDC
     movem.l (sp)+,d0-d1/a0-a2/a6
     rts
 

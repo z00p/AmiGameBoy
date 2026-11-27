@@ -43,6 +43,18 @@ AutoExit	=0
 	IFND	HY_VBLFRAMES
 HY_VBLFRAMES	=78411		; Game Boy frames per PAL VBL, 16.16 (59.7275 / 49.92)
 	ENDC
+	IFD	HY_SYNCLOG
+SYNCEV	MACRO				; test (pacing.s): \1 = type, \2 = info (a word, not d0/a0)
+	move.l	d0,-(sp)
+	move.l	a0,-(sp)
+	move.w	\2,-(sp)
+	moveq	#\1,d0
+	jsr	hy_slev
+	addq.l	#2,sp
+	move.l	(sp)+,a0
+	move.l	(sp)+,d0
+	ENDM
+	ENDC
 	IFND	HY_MAXSKIP
 HY_MAXSKIP	=3		; pictures skipped in a row at most
 	ENDC
@@ -89,6 +101,37 @@ SGB_MENU	SET	1		; its Options menu tick
 SGB_DUAL	SET	1		; dual .gbc carts ($80) with Super Game Boy extras run as on an SGB
 	ENDC
 	ENDC
+	IFD	SGB_AGA			; Super Game Boy on the AGA program's colour display (27 Nov 2026,
+	IFND	GBC_AGA			; sgbaga.s): packets, block palettes, border, option and tick;
+	FAIL	"SGB_AGA needs GBC_AGA (the AGA colour program)"
+	ENDC				; SGB mono carts through the line renderer's DMG path
+	IFND	GBC_DMG
+GBC_DMG		SET	1
+	ENDC
+	IFND	SGB_PKT
+SGB_PKT		SET	1
+	ENDC
+	IFND	SGB_COL
+SGB_COL		SET	1
+	ENDC
+	IFND	SGB_BORD
+SGB_BORD	SET	1
+	ENDC
+	IFND	SGB_OPT
+SGB_OPT		SET	1
+	ENDC
+	IFD	GBC_CCMENU
+	IFND	SGB_MENU
+SGB_MENU	SET	1
+	ENDC
+	ENDC
+	IFND	SGB_DUAL
+SGB_DUAL	SET	1
+	ENDC
+	IFD	SGB_BFIT
+	FAIL	"SGB_BFIT is RTG only"
+	ENDC
+	ENDC
 	IFD	SGB_P2			; two-player Super Game Boy games: port 1 is player 2 (sgb.s sgb_pads).
 	IFD	SGB_PKT			; Only with SGB_PKT (the RTG program); ignored in the others, which
 SGB_2P		SET	1		; build.sh rel gives the same switches
@@ -99,7 +142,9 @@ SGB_2P		SET	1		; build.sh rel gives the same switches
 	ENDC
 	IFD	SGB_PKT
 	IFND	GBC_RTG
-	FAIL	"SGB_PKT needs GBC_RTG (the Super Game Boy is RTG only)"
+	IFND	SGB_AGA
+	FAIL	"SGB_PKT needs GBC_RTG or SGB_AGA"
+	ENDC
 	ENDC
 	IFND	GBC_DMG
 	FAIL	"SGB_PKT needs GBC_DMG (the hymenu build, or -DGBC_DMG)"
@@ -130,7 +175,9 @@ SGB_2P		SET	1		; build.sh rel gives the same switches
 	FAIL	"SGB_OPT needs SGB_PKT"
 	ENDC
 	IFND	GBC_RBEZ
+	IFND	SGB_AGA			; (SGB_AGA: its own, sgb_acfg)
 	FAIL	"SGB_OPT needs GBC_RBEZ (its config reader)"
+	ENDC
 	ENDC
 	ENDC
 	IFD	SGB_MENU
@@ -141,7 +188,9 @@ SGB_2P		SET	1		; build.sh rel gives the same switches
 	FAIL	"SGB_MENU needs GBC_RMENU and GBC_CCMENU (the item after them)"
 	ENDC
 	IFND	GBC_RMENU
+	IFND	SGB_AGA			; (AGA: after LCD Colours alone)
 	FAIL	"SGB_MENU needs GBC_RMENU and GBC_CCMENU (the item after them)"
+	ENDC
 	ENDC
 	ENDC
 ; exec / dos offsets
@@ -368,6 +417,9 @@ HyPressDir:	dc.b	$ff		; this frame's directions, low active
 ; Up 4, Down 8), in frame order. Dangan GB2: title, menu, select (left), profile, stage 1
 ; (the same presses as the Mesen reference run, 17 Nov 2026).
 HyPressTab:
+	IFD	HY_PRESSINC		; test: another table, build/presstab.i (not in git)
+	include	"../../build/presstab.i"
+	ELSE
 	dc.w	700,706
 	dc.b	8,0
 	dc.w	1000,1006
@@ -383,6 +435,7 @@ HyPressTab:
 	dc.w	2400,2406
 	dc.b	1,0
 	dc.w	0
+	ENDC
 	ENDC
 	ENDC
 
@@ -460,6 +513,9 @@ hybrid_frame:
 	IFD	HY_FRAMELOG
 	bsr.w	HyFLogAdd
 	ENDC
+	IFD	HY_SYNCLOG		; test: the frame's end (pacing.s)
+	SYNCEV	1,HyFrames+2
+	ENDC
 	IFND	NO_SOUND
 	tst.l	HyFrames		; first frame: NR52 channel bits from our channels
 	bpl.s	.snd1			; (the post-boot values say channel 1 is on)
@@ -483,6 +539,9 @@ hybrid_frame:
 	bcc.s	.draw
 	addq.b	#1,HySkipRun		; skip the picture
 	addq.l	#1,HySkipped
+	IFD	HY_SYNCLOG
+	SYNCEV	4,HyCreditF
+	ENDC
 	lea	TabRasCMDS,a0		; drop this frame's register log
 	moveq	#144/4-1,d0
 .clr:	clr.l	(a0)+
@@ -554,6 +613,9 @@ hybrid_frame:
 	ENDC
 	ENDC
 .now:
+	IFD	HY_SYNCLOG
+	SYNCEV	2,HyCreditF
+	ENDC
 	IFD	HY_PROF			; test: beam lines spent in the build (max, total)
 	bsr.w	HyBeam
 	move.l	d0,-(sp)
@@ -575,6 +637,9 @@ hybrid_frame:
 	IFD	GBC_AGA
 .shown:
 	ENDC
+	ENDC
+	IFD	HY_SYNCLOG
+	SYNCEV	3,HyFrames+2
 	ENDC
 	IFD	HY_PROF
 	bsr.w	HyBeam
@@ -1042,12 +1107,23 @@ HyPcSave:
 	jsr	dosWrite(a6)
 	bra.s	.b
 	ENDC
-.c:	move.l	d4,d1
+.c:
+	IFD	WZ112_ELOG		; test: the sound event ring (wz112snd.s)
+	move.l	d4,d1
+	move.l	#hy_elogn,d2
+	move.l	#4+4096*8,d3
+	jsr	dosWrite(a6)
+	ENDC
+	move.l	d4,d1
 	jsr	dosClose(a6)
 .x:	movem.l	(sp)+,d0-d7/a0-a6
 	rts
 	IFD	GBC_RENDER
-.blk:	dc.l	gbc_vram,$4000,gbc_rgb,256,gbc_dmgreg,4,gbc_pixfmt,4,gbc_fb,160*144*2
+.blk:	dc.l	gbc_vram,$4000,gbc_rgb,256
+	IFD	GBC_DMG			; (mono carts through the chunky renderer)
+	dc.l	gbc_dmgreg,4
+	ENDC
+	dc.l	gbc_pixfmt,4,gbc_fb,160*144*2
 	IFD	SGB_COL			; and the Super Game Boy's line tables
 	dc.l	sgb_lut,512,sgb_attr,360
 	ENDC
@@ -1070,6 +1146,11 @@ HyPclBuf:	ds.b	HY_PCLOG*32
 ; 160 x 144 words in that format),
 ; palette RAM (BG 64 + OBJ 64 bytes) for tools/gbc_pic.py
 GbcFbSave:
+	IFD	GBC_RSTYLE
+	IFD	GBC_RSDUMP		; test: the scanline pictures (scanlines.s)
+	jsr	gbc_rsdsave
+	ENDC
+	ENDC
 	IFD	GBC_AGA			; AGA: the planes and copper colours ("AGA1", gbc_aga.s)
 	jmp	gbc_asave
 	ENDC
@@ -1314,6 +1395,7 @@ HyPatchWrites:
 	IFD	HY_BEZHOOK
 	include	"bezel.s"
 	ENDC
+	include	"wz112.i"		; the Wzonka-Lad 1.12 switches (sound.s has some)
 	IFND	NO_SOUND
 	include	"sound.s"
 	IFD	HY_MENU
@@ -1333,11 +1415,16 @@ scanline_draw:
 	rts
 	IFND	NO_SOUND
 snd_high_do:				; per line: frame sequencer step every 8192 T-cycles
+	IFD	WZ112_APUSEQ		; (WZ112_APUSEQ: from the divider, wz112snd.s; the same
+	bra.w	snd_high_back		; 28 bytes)
+	dcb.w	12,$4e71
+	ELSE
 	sub.w	#456,HySndSeq
 	bpl.w	snd_high_back
 	add.w	#8192,HySndSeq
 	bsr.w	HySndStep
 	bra.w	snd_high_back
+	ENDC
 	ELSE
 snd_high_do:	bra.w	snd_high_back
 	ENDC
@@ -1385,8 +1472,27 @@ HyWzEnd:				; end of the engine state (menu.s keeps a copy)
 	include	"rmenu.s"
 	ENDC
 	ENDC
+	IFD	HY_PACEOPT		; 2.6: the Pacing line is written by rmenu.s (gbc_rmsave)
+	IFND	GBC_RMENU
+	IFND	GBC_CCMENU
+	include	"rmenu.s"
+	ENDC
+	ENDC
+	ENDC
 	IFD	GBC_AGA
 	include	"gbc_aga.s"
+	ENDC
+	IFD	SGB_AGA			; the Super Game Boy on the AGA display (27 Nov 2026)
+	include	"sgbaga.s"
+	ENDC
+	IFD	HY_PACEOPT		; "Pacing = 60 Hz | 50 Hz | Smooth" = the menu's Screen (2.6)
+HY_PACEINC	SET	1
+	ENDC
+	IFD	HY_SYNCLOG		; test: the pacing event log
+HY_PACEINC	SET	1
+	ENDC
+	IFD	HY_PACEINC
+	include	"pacing.s"
 	ENDC
 
 	SECTION	hybrid,CODE
@@ -1521,4 +1627,12 @@ HySnapGbc:	ds.b	(gbc_dend-gbc_dstart+3)&-4
 	cnop	0,4
 EmbedCart:	INCBIN	"../../build/hybrid_rom.bin"
 EmbedCartEnd:
+	ENDC
+	IFD	WZ112_ANY		; Wzonka-Lad 1.12 fixes (wz_engine.s WZ_SYNC112): own hunks, last
+	include	"wz112.s"
+	ENDC
+	IFD	WZ112_SND		; and the sound ones (wz112snd.s)
+	IFND	NO_SOUND
+	include	"wz112snd.s"
+	ENDC
 	ENDC

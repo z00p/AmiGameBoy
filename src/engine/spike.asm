@@ -796,3 +796,6 @@ OcTab:		ds.b	512*16
 	cnop	0,4
 EmbedCart:	INCBIN	"../../build/spike_rom.bin"
 EmbedCartEnd:
+	IFD	WZ112_ANY		; Wzonka-Lad 1.12 fixes: own hunks, last
+	include	"wz112.s"
+	ENDC

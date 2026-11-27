@@ -4444,6 +4444,9 @@ z80_optc_CB75:	subq.l	#2,a5					;less cycles.
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
 
 z80_optcode_76:	subq.l	#1,a5
+		IFD	WZ112_TIMER
+		jsr	wz_tsyncd			;AmiGameBoy WZ112_TIMER: IF up to now
+		ENDC
 		tst.b	i_flag
 		bne.s	z80_optcode_76_skip
 
@@ -8158,7 +8161,23 @@ z80_optc_CBEF:	subq.l	#2,a5					;less cycles.
 z80_optcode_F0:	move.w	#$ff00,d7				;custom registers.
 		subq.l	#3,a5
 		move.b	(a0)+,d7
+		IFD	WZ112_TIMER
+		IFD	WZ112_APURD
+		cmp.b	#$40,d7					;(WZ112_APURD: and $FF10-$FF3F)
+		ELSE
+		cmp.b	#$10,d7					;AmiGameBoy WZ112_TIMER: DIV,
+		ENDC
+		bcc.s	z80_f0_raw				;TIMA, TMA, TAC, IF at the
+		cmp.b	#$04,d7					;read's cycle (wz112.s).
+		bcs.s	z80_f0_raw
+		jsr	wz_tread
+		bra.s	z80_f0_done
+z80_f0_raw:
+		ENDC
 		move.b	(a2,d7.l),d3				;ld a, ($ff00+x).
+		IFD	WZ112_TIMER
+z80_f0_done:
+		ENDC
 		IFD	IDLESKIP
 		cmpa.l	idle_pc,a0				;AmiGameBoy: same LDH again?
 		beq.l	idle_seen
@@ -8224,7 +8243,23 @@ z80_optc_CBF1:	subq.l	#2,a5					;less cycles.
 z80_optcode_F2:	move.w	#$ff00,d7				;custom registers.
 		subq.l	#2,a5					;less cycles.
 		move.b	d1,d7					;offset.
+		IFD	WZ112_TIMER
+		IFD	WZ112_APURD
+		cmp.b	#$40,d7					;(WZ112_APURD: and $FF10-$FF3F)
+		ELSE
+		cmp.b	#$10,d7					;AmiGameBoy WZ112_TIMER (as F0).
+		ENDC
+		bcc.s	z80_f2_raw
+		cmp.b	#$04,d7
+		bcs.s	z80_f2_raw
+		jsr	wz_tread
+		bra.s	z80_f2_done
+z80_f2_raw:
+		ENDC
 		move.b	(a2,d7.l),d3				;ld a, ($ff00+c).
+		IFD	WZ112_TIMER
+z80_f2_done:
+		ENDC
 
 		fetch_next_i
 		cnop	0,128
@@ -8476,7 +8511,17 @@ z80_optcode_FA:	move.w	(a0)+,d7
 		fetch_next_i
 		cnop	0,4
 
-read_d7_to_d3a:	GBC_RD	d7,d3				;ram read.
+read_d7_to_d3a:
+		IFD	WZ112_APURD
+		cmp.w	#$ff10,d7				;AmiGameBoy WZ112_APURD: NR52 and
+		bcs.s	z80_fa_ram				;wave RAM at the read's cycle
+		cmp.w	#$ff40,d7				;(wz112.s), as LDH A,(n).
+		bcc.s	z80_fa_ram
+		jsr	wz_treada
+		fetch_next_i
+z80_fa_ram:
+		ENDC
+		GBC_RD	d7,d3				;ram read.
 
 		fetch_next_i
 		cnop	0,128
@@ -8732,6 +8777,23 @@ wz_oam_rinc:	move.w	-16(a6),d6			;a.
 wz_oam_end:	dcb.b	(256-((wz_oam_end-wz_oam_blk)&255))&255,0	;a multiple of 256: what follows keeps its place.
 		ENDC
 
+; AmiGameBoy WZ112_TIMER: the same for HALT, LDH A,(n) and LD A,(C).
+		IFD	WZ112_TIMER
+		IFNE	(z80_optcode_76-z80_jump_table-$7600)|(z80_optc_CB76-z80_jump_table-$7680)
+		fail	"WZ112: handler 76 is over its 128 bytes"
+		ENDC
+		IFNE	(z80_optcode_F0-z80_jump_table-$F000)|(z80_optc_CBF0-z80_jump_table-$F080)
+		fail	"WZ112: handler F0 is over its 128 bytes"
+		ENDC
+		IFNE	(z80_optcode_F2-z80_jump_table-$F200)|(z80_optc_CBF2-z80_jump_table-$F280)
+		fail	"WZ112: handler F2 is over its 128 bytes"
+		ENDC
+		ENDC
+		IFD	WZ112_APURD
+		IFNE	(z80_optcode_FA-z80_jump_table-$FA00)|(z80_optc_CBFA-z80_jump_table-$FA80)
+		fail	"WZ112: handler FA is over its 128 bytes"
+		ENDC
+		ENDC
 ; AmiGameBoy WZ_*: the handlers these switches change must stay in their 128-byte slots.
 		IFD	WZ_ANY
 		IFNE	(z80_optcode_2A-z80_jump_table-$2A00)|(z80_optc_CB2A-z80_jump_table-$2A80)

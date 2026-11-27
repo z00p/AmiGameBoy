@@ -24,6 +24,7 @@ WZ_EIDELAY	equ	1			;DI cancels EI; EI;RETI / EI;HALT one interrupt
 WZ_HALT		equ	1			;halt bug at a sweep end; EI;HALT back to HALT
 		ENDC
 		ENDC
+		include	"wz112.i"			;Wzonka-Lad 1.12 fixes: the WZ112_ switches
 ; Not in WZ_SYNC111 (yet): WZ_OAMBUG (the DMG OAM corruption only in mode 2, by row).
 		IFD	WZ_HALT
 WZ_EIHALTX	equ	1			;(z80_full_III.s: WZ_HALT or WZ_EIDELAY)
@@ -434,10 +435,22 @@ input_time:	movem.l	d0-d6/a0-a6,-(SP)
 
 no_input_this_time:
 		IFLE	Z80_MODE
+		IFD	WZ112_TIMER			;AmiGameBoy WZ112_TIMER (wz112.s): the
+		IFD	WZ112_TSWEEP			;same 14/16 bytes.
+		jsr	wz_ts03
+		bra.s	no_timer_update_0
+		dcb.w	3,$4e71
+		ELSE
+		move.l	wz_tlen,d6			;the clock: this sweep's length
+		add.l	d6,wz_tend
+		nop
+		ENDC
+		ELSE
 		move.b	$07(a6),d7			;d7 = timer control byte.
 		btst	#2,d7				;0 = stopped / 1 = counting.
 		beq.s	no_timer_update_0		;0! no update.
 		bsr.w	irq_timer
+		ENDC
 no_timer_update_0:
 		ENDIF
 
@@ -651,10 +664,16 @@ gbc_vli1:
 		ENDC
 
 		IFLE	Z80_MODE
+		IFD	WZ112_TIMER			;AmiGameBoy WZ112_TIMER (wz112.s): the
+		jsr	wz_ts1				;same 14/16 bytes.
+		bra.s	no_timer_update_1
+		dcb.w	4,$4e71
+		ELSE
 		move.b	$07(a6),d7			;d7 = timer control byte.
 		btst	#2,d7				;0 = stopped / 1 = counting.
 		beq.w	no_timer_update_1		;0! no update.
 		bsr.w	irq_timer
+		ENDC
 no_timer_update_1:
 		ENDIF
 
@@ -716,7 +735,12 @@ no_transfer_reset:
 
 no_transfer:
 		IFND	NO_DIVRATE
+		IFD	WZ112_TIMER			;(WZ112_TIMER: DIV from the divider;
+		bra.w	wz_nodiv			;the same 8 bytes)
+		dcb.w	2,$4e71
+		ELSE
 		add.b	#200,div_frac			;AmiGameBoy: a line is 456 T-cycles and
+		ENDC
 		scs	d7				;DIV ticks every 256: +1 a line, +2
 		sub.b	d7,$04(a6)			;when the fraction carries.
 		ENDC
@@ -732,6 +756,7 @@ no_transfer:
 gbc_div_single:
 		ENDC
 		ENDC
+wz_nodiv:
 		and.b	#%11111100,$41(a6)
 
 		move.l	h_values_indexed,a5
@@ -862,10 +887,22 @@ cpu_halt_is_on_1:
 		add.l	#$ff00,a6
 
 		IFLE	Z80_MODE
+		IFD	WZ112_TIMER			;AmiGameBoy WZ112_TIMER (wz112.s): the
+		IFD	WZ112_TSWEEP			;same 14/16 bytes.
+		jsr	wz_ts03
+		bra.s	no_timer_update_2
+		dcb.w	4,$4e71
+		ELSE
+		move.l	wz_tlen,d6			;the clock: this sweep's length
+		add.l	d6,wz_tend
+		dcb.w	2,$4e71
+		ENDC
+		ELSE
 		move.b	$07(a6),d7			;d7 = timer control byte.
 		btst	#2,d7				;0 = stopped / 1 = counting.
 		beq.w	no_timer_update_2		;0! no update.
 		bsr.w	irq_timer
+		ENDC
 no_timer_update_2:
 		ENDIF
 
@@ -1002,10 +1039,22 @@ xan_drawed_2:
 		add.l	#$ff00,a6
 
 		IFLE	Z80_MODE
+		IFD	WZ112_TIMER			;AmiGameBoy WZ112_TIMER (wz112.s): the
+		IFD	WZ112_TSWEEP			;same 14/16 bytes.
+		jsr	wz_ts03
+		bra.s	no_timer_update_3
+		dcb.w	4,$4e71
+		ELSE
+		move.l	wz_tlen,d6			;the clock: this sweep's length
+		add.l	d6,wz_tend
+		dcb.w	2,$4e71
+		ENDC
+		ELSE
 		move.b	$07(a6),d7			;d7 = timer control byte.
 		btst	#2,d7				;0 = stopped / 1 = counting.
 		beq.w	no_timer_update_3		;0! no update.
 		bsr.w	irq_timer
+		ENDC
 no_timer_update_3:
 		ENDIF
 
@@ -1145,10 +1194,22 @@ cpu_halt_is_on_3:
 		add.l	#$ff00,a6
 
 		IFLE	Z80_MODE
+		IFD	WZ112_TIMER			;AmiGameBoy WZ112_TIMER (wz112.s): the
+		IFD	WZ112_TSWEEP			;same 14/16 bytes.
+		jsr	wz_ts4
+		bra.s	no_timer_update_4
+		dcb.w	4,$4e71
+		ELSE
+		move.l	z80_cycles,d6			;the clock: this sweep's length
+		add.l	d6,wz_tend
+		dcb.w	2,$4e71
+		ENDC
+		ELSE
 		move.b	$07(a6),d7			;d7 = timer control byte.
 		btst	#2,d7				;0 = stopped / 1 = counting.
 		beq.w	no_timer_update_4		;0! no update.
 		bsr.w	irq_timer
+		ENDC
 no_timer_update_4:
 		ENDIF
 
@@ -1295,8 +1356,13 @@ lcd_ly_on:
 ;		input
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
 
-input_irq:	move.b	(a6),d6
+input_irq:
+		IFD	WZ112_JOYIRQ
+		jmp	wz_joyirq			;AmiGameBoy WZ112_JOYIRQ (wz112.s; 6 bytes)
+		ELSE
+		move.b	(a6),d6
 		btst	#5,d6
+		ENDC
 		beq.s	key_irq_buttons
 		btst	#4,d6
 		beq.s	key_irq_cross
@@ -1458,7 +1524,11 @@ gb_memory_at_start:
 		clr.b	mbc5_rom_bank1
 		clr.b	mbc5_rom_bank0
 
+		IFD	WZ112_ANY
+		jsr	wz_start			;AmiGameBoy WZ112_ (wz112.s; 6 bytes)
+		ELSE
 		clr.l	freq_storage
+		ENDC
 		IFND	NO_BOOTVRAM
 		bsr.w	boot_vram			;AmiGameBoy: logo left by the boot ROM.
 		ENDC
@@ -3082,7 +3152,14 @@ freq_table:	dc.l	365				;(4096*4096*456)/(4194304*5) = 364.8
 ffxx_jmp_table:	dc.l	do_joystick
 		dc.l	sio_register
 		dc.l	sio_control
+		IFD	WZ112_UNUSEDIO			;AmiGameBoy WZ112_UNUSEDIO: writes to
+		dc.l	no_write			;unused I/O dropped ($03, $08-$0E, $15,
+		ELSE					;$1F, $27-$2F).
 		dc.l	gb_mem_wr
+		ENDC
+		IFD	WZ112_TIMER			;AmiGameBoy WZ112_TIMER (wz112.s).
+		dc.l	wz_w04,wz_w05,wz_w06,wz_w07
+		ELSE
 		dc.l	clear_divider
 		IFD	NO_TIMAWRITE
 		dc.l	gb_mem_wr
@@ -3091,6 +3168,10 @@ ffxx_jmp_table:	dc.l	do_joystick
 		ENDC
 		dc.l	gb_mem_wr
 		dc.l	timc_protect
+		ENDC
+		IFD	WZ112_UNUSEDIO
+		dcb.l	7,no_write
+		ELSE
 		dc.l	gb_mem_wr
 		dc.l	gb_mem_wr
 		dc.l	gb_mem_wr
@@ -3098,14 +3179,23 @@ ffxx_jmp_table:	dc.l	do_joystick
 		dc.l	gb_mem_wr
 		dc.l	gb_mem_wr
 		dc.l	gb_mem_wr
+		ENDC
+		IFD	WZ112_IFW
+		dc.l	wz_w0f
+		ELSE
 		dc.l	irq_protect_0f				;$0f.
+		ENDC
 
 		dc.l	rom_write
 		dc.l	rom_write
 		dc.l	rom_write
 		dc.l	rom_write
 		dc.l	rom_write
+		IFD	WZ112_UNUSEDIO
+		dc.l	no_write
+		ELSE
 		dc.l	gb_mem_wr
+		ENDC
 		dc.l	rom_write
 		dc.l	rom_write
 		dc.l	rom_write
@@ -3115,7 +3205,11 @@ ffxx_jmp_table:	dc.l	do_joystick
 		dc.l	rom_write
 		dc.l	rom_write
 		dc.l	rom_write
+		IFD	WZ112_UNUSEDIO
+		dc.l	no_write
+		ELSE
 		dc.l	gb_mem_wr				;$1f.
+		ENDC
 
 		dc.l	rom_write
 		dc.l	rom_write
@@ -3124,6 +3218,9 @@ ffxx_jmp_table:	dc.l	do_joystick
 		dc.l	rom_write
 		dc.l	rom_write
 		dc.l	rom_write
+		IFD	WZ112_UNUSEDIO
+		dcb.l	9,no_write
+		ELSE
 		dc.l	gb_mem_wr
 		dc.l	gb_mem_wr
 		dc.l	gb_mem_wr
@@ -3133,6 +3230,7 @@ ffxx_jmp_table:	dc.l	do_joystick
 		dc.l	gb_mem_wr
 		dc.l	gb_mem_wr
 		dc.l	gb_mem_wr				;$2f.
+		ENDC
 
 		dc.l	rom_write
 		dc.l	rom_write
@@ -3353,7 +3451,11 @@ ffxx_jmp_table:	dc.l	do_joystick
 		dc.l	gb_mem_wr
 		dc.l	gb_mem_wr
 		dc.l	gb_mem_wr
+		IFD	WZ112_IFW
+		dc.l	wz_wff
+		ELSE
 		dc.l	irq_protect_ff				;$ff.
+		ENDC
 
 ;««««««««««««««««««««««««««««««««««««««««««««««»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»»
 ;		memory lists

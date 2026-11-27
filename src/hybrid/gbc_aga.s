@@ -27,8 +27,17 @@
 ; - GBC_APROF (test): two rows of hex numbers above the picture, per 50 vertical blanks, times in
 ;   lines from the CIA-B TOD counter (see the legend at gbc_qend).
 
+	IFD	SGB_AGA			; the Super Game Boy's 256 x 224 picture (sgbaga.s): taller planes
+GBC_APL		=40*224			; bytes a plane
+	ELSE
 GBC_APL		=40*144			; bytes a plane
+	ENDC
 GBC_ABUF	=8*GBC_APL		; a buffer's planes
+	IFD	SGB_AGA			; gbc_adraw's plane pointer: in the middle, so that all 8 planes
+GBC_AP3		=3*GBC_APL+GBC_APL/2	; are within a 16-bit displacement of it
+	ELSE
+GBC_AP3		=3*GBC_APL		; (plane 3)
+	ENDC
 GBC_APKEEP	=192			; see above
 	IFD	GBC_APROF
 GBC_APMAX	=254			; pens 254/255: the panel's black and white
@@ -69,7 +78,11 @@ gbc_aga_init:
 	movem.l	(sp)+,d0-d7/a0-a6
 	rts
 ; a0 = copper list, a1 = its planes
-.list:	moveq	#0,d1			; colour bank
+.list:
+	IFD	SGB_AGA
+	move.l	a0,a2			; (sgb_adiwo: where the window's moves are)
+	ENDC
+	moveq	#0,d1			; colour bank
 .bk:	move.w	d1,d2
 	ror.w	#3,d2			; BPLCON3 bank bits 15-13 (the border bit: gbc_aga_on)
 	move.w	#$0106,(a0)+
@@ -129,8 +142,16 @@ gbc_aga_init:
 	move.l	#$0090D851,(a0)+
 	ENDC
 	ELSE
+	IFD	SGB_AGA
+	move.l	a0,d0
+	sub.l	a2,d0
+	move.w	d0,sgb_adiwo
+	ENDC
 	move.l	#$008E48B1,(a0)+	; Juan's window: lines $48-$D7, H $B1-$150
 	move.l	#$0090D851,(a0)+
+	IFD	SGB_AGA			; DIWHIGH as the two above imply (sgb_ageo changes all three)
+	move.l	#$01E42000,(a0)+
+	ENDC
 	ENDC
 	move.l	#$00920040,(a0)+	; Juan's fetch: five 64-bit units, pixel 0 at
 	move.l	#$009400B8,(a0)+	; H $B1 with the delay below
@@ -161,9 +182,19 @@ gbc_aga_init:
 gbc_aga_on:
 	sf	gbc_aga_onf
 	tst.b	gbc_mode
+	IFD	SGB_AGA			; or a Super Game Boy cart (sgbaga.s)
+	bne.s	.on
+	tst.b	sgb_on
+	ENDC
 	beq.w	.x
+	IFD	SGB_AGA
+.on:
+	ENDC
 	movem.l	d0-d3/a0-a1,-(sp)
 	st	gbc_aga_onf
+	IFD	SGB_AGA
+	jsr	sgb_ageo		; its screen (or the colour cart's)
+	ENDC
 	move.w	BpCon3+2,d0		; the menu's black border (Juan's BPLCON3 bit 5)
 	and.w	#$0020,d0
 	lea	gbc_acop0,a0
@@ -308,6 +339,10 @@ gbc_adraw:
 	cmp.w	d2,d1
 	bcs.s	.pn
 .pd:
+	IFD	SGB_AGA			; a Super Game Boy cart: its fixed pens' colours (sgbaga.s)
+	move.l	(sp),d0
+	jsr	sgb_acols
+	ENDC
 ; c2p: a0 chunky, a2 what the buffer holds, a1 plane 3 at the group, a5 line end, a6 picture end
 	move.l	(sp),d0
 	and.w	#1,d0
@@ -318,12 +353,16 @@ gbc_adraw:
 	st	gbc_aflag
 	ENDC
 	lea	gbc_ckold0,a2
-	lea	gbc_apl0+3*GBC_APL,a1
+	lea	gbc_apl0+GBC_AP3,a1
 	tst.w	d0
 	beq.s	.b0
 	lea	gbc_ckold1,a2
-	lea	gbc_apl1+3*GBC_APL,a1
-.b0:	lea	gbc_ck,a0
+	lea	gbc_apl1+GBC_AP3,a1
+.b0:
+	IFD	SGB_AGA			; the picture's place in the planes (sgb_ageo)
+	add.l	gbc_aorg,a1
+	ENDC
+	lea	gbc_ck,a0
 	lea	160(a0),a5
 	lea	160*144(a0),a6
 .grp:	tst.b	gbc_aflag
@@ -342,6 +381,16 @@ gbc_adraw:
 	movem.l	d0-d7,(a2)
 	lea	32(a2),a2
 	include	"gbc_c2p.i"
+	IFD	SGB_AGA			; (taller planes: a1 between planes 3 and 4)
+	move.l	a3,0*GBC_APL-GBC_AP3(a1)	; planes 0-7
+	move.l	d5,1*GBC_APL-GBC_AP3(a1)
+	move.l	d3,2*GBC_APL-GBC_AP3(a1)
+	move.l	d1,3*GBC_APL-GBC_AP3(a1)
+	move.l	d6,4*GBC_APL-GBC_AP3(a1)
+	move.l	d4,5*GBC_APL-GBC_AP3(a1)
+	move.l	d2,6*GBC_APL-GBC_AP3(a1)
+	move.l	d0,7*GBC_APL-GBC_AP3(a1)
+	ELSE
 	move.l	a3,-3*GBC_APL(a1)	; planes 0-7
 	move.l	d5,-2*GBC_APL(a1)
 	move.l	d3,-1*GBC_APL(a1)
@@ -350,6 +399,7 @@ gbc_adraw:
 	move.l	d4,2*GBC_APL(a1)
 	move.l	d2,3*GBC_APL(a1)
 	move.l	d0,4*GBC_APL(a1)
+	ENDC
 	addq.l	#4,a1
 	IFD	GBC_APROF
 	addq.w	#1,gbc_qgrps
@@ -501,7 +551,14 @@ gbc_pframe:
 ; OS alive (HyExit / HyMenuLeave). tools/gbc_pic.py reads it.
 gbc_asave:
 	tst.b	gbc_mode
+	IFD	SGB_AGA			; (a Super Game Boy cart too)
+	bne.s	.sv
+	tst.b	sgb_on
+	ENDC
 	beq.w	.x
+	IFD	SGB_AGA
+.sv:
+	ENDC
 	moveq	#0,d0
 	move.b	gbc_ashown,d0
 	IFND	GBC_NODBUF

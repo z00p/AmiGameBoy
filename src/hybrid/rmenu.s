@@ -22,9 +22,16 @@
 RMBUF		=2048			; as padcfg.s reads
 RM_ITEM		=17			; Bezel; Scanlines is the next
 RM_OPTIONS	=2			; Juan's Options menu
+	IFD	GBC_RSTYLE
+RM_STYITEM	=RM_ITEM+2		; Scanline style (2.6), after Scanlines (scanlines.s)
+	ENDC
 	IFD	GBC_CCMENU
 	IFD	GBC_RMENU
+	IFD	GBC_RSTYLE
+RM_CCITEM	=RM_ITEM+3		; LCD Colours, after Scanline style
+	ELSE
 RM_CCITEM	=RM_ITEM+2		; LCD Colours, after Scanlines
+	ENDC
 	ELSE
 RM_CCITEM	=RM_ITEM		; LCD Colours, after its line
 	ENDC
@@ -53,6 +60,9 @@ gbc_rmsync:
 	moveq	#RM_ITEM+1,d0
 	move.b	gbc_rscanon,d3
 	bsr.s	.tick
+	IFD	GBC_RSTYLE		; the Scanline style sub-menu (scanlines.s)
+	jsr	gbc_rsmsync
+	ENDC
 	ENDC
 	IFD	GBC_CCMENU
 	moveq	#RM_CCITEM,d0
@@ -69,6 +79,11 @@ gbc_rmsync:
 	jsr	ResetMenuStrip(a6)
 	IFD	HY_RMTEST
 	jsr	gbc_rmtest
+	ENDC
+	IFD	GBC_RSTYLE
+	IFD	BM_STYTEST		; test: the big menu's selectors clicked (scanlines.s)
+	jsr	bm_stytest
+	ENDC
 	ENDC
 .x:	movem.l	(sp)+,d0-d3/a0-a2/a6
 	rts
@@ -110,6 +125,12 @@ gbc_rmpick:
 	sne	d7
 	neg.b	d7			; 1 on, 0 off
 	move.b	d7,(a2)
+	IFD	GBC_RSTYLE		; Scanlines: the style's line too (scanlines.s)
+	cmp.l	#gbc_rmname1,a3
+	bne.s	.ns
+	jsr	gbc_rssavesty
+.ns:
+	ENDC
 	bsr.s	gbc_rmsave
 .x:	movem.l	(sp)+,d0-d7/a0-a6
 	rts
@@ -155,7 +176,7 @@ gbc_rmsgb:
 	ENDC
 
 ; the line "<a3> = On|Off" (d7.b 1|0; GBC_CCMENU: 3|2 = LCD|Raw; SGB_MENU: 5|4 = Auto|Off;
-; GBC_JOYCFG: 8-11 the Joy type) into PROGDIR:AmiGameBoy.config
+; GBC_JOYCFG: 8-11 the Joy type; HY_PACEOPT: 12-14 Pacing) into PROGDIR:AmiGameBoy.config
 gbc_rmsave:
 	sub.l	a1,a1
 	move.l	4.w,a6
@@ -245,6 +266,15 @@ gbc_rmsave:
 	beq.s	.add
 	move.b	#10,(a4)+
 .add:
+	IFD	HY_PACEOPT		; the Pacing line: its comment first (pacing.s)
+	cmp.l	#hy_kpacew,a3
+	bne.s	.pc
+	lea	hy_pacecmt,a0
+.pc1:	move.b	(a0)+,(a4)+
+	bne.s	.pc1
+	subq.l	#1,a4
+.pc:
+	ENDC
 	IFD	GBC_JOYCFG		; the Joy type line: its comment first (bigmenu.s)
 	cmp.l	#bm_joyname,a3
 	bne.s	.ac
@@ -281,6 +311,28 @@ gbc_rmsave:
 	move.l	(sp)+,$b8(a5)
 	rts
 .value:
+	IFD	GBC_RSTYLE		; 16-21: the scanline style's words (scanlines.s)
+	cmp.b	#16,d7
+	bcs.s	.vy
+	moveq	#0,d0
+	move.b	d7,d0
+	sub.w	#16,d0
+	lea	gbc_rsvals,a5
+	move.l	(a5,d0.w*4),a5
+	bra.s	.v1
+.vy:
+	ENDC
+	IFD	HY_PACEOPT		; 12-14: Pacing 50 Hz, 60 Hz, Smooth (pacing.s)
+	cmp.b	#12,d7
+	bcs.s	.vp
+	moveq	#0,d0
+	move.b	d7,d0
+	sub.w	#12,d0
+	lea	hy_pvals,a5
+	move.l	(a5,d0.w*4),a5
+	bra.s	.v1
+.vp:
+	ENDC
 	IFD	GBC_JOYCFG		; 8-11: the Joy type (bigmenu.s)
 	cmp.b	#8,d7
 	bcs.s	.vj
